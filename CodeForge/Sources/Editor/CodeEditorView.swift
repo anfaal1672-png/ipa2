@@ -17,6 +17,14 @@ final class EditorProxy: ObservableObject {
     func focus() { textView?.becomeFirstResponder() }
     func dismissKeyboard() { textView?.resignFirstResponder() }
 
+    /// Pushes the live buffer into the document right now. Anything that reads
+    /// `document.text` (saving, previewing, sharing) must call this first,
+    /// because the editor only syncs on a debounce.
+    func flushText() {
+        guard let coordinator = textView?.delegate as? CodeEditorView.Coordinator else { return }
+        coordinator.syncTextNow()
+    }
+
     func updateCaretReadout() {
         guard let textView else { return }
         let position = textView.caretPosition
@@ -104,16 +112,8 @@ final class EditorProxy: ObservableObject {
 
     func goToLine(_ line: Int) {
         guard let textView else { return }
-        let ns = textView.text as NSString
-        var index = 0
-        var current = 1
-        while current < line, index < ns.length {
-            let found = ns.range(of: "\n", options: [], range: NSRange(location: index, length: ns.length - index))
-            if found.location == NSNotFound { break }
-            index = found.location + 1
-            current += 1
-        }
-        textView.selectedRange = NSRange(location: min(index, ns.length), length: 0)
+        let index = textView.codeStorage.startOfLine(max(1, line))
+        textView.selectedRange = NSRange(location: min(index, textView.codeStorage.length), length: 0)
         textView.scrollRangeToVisible(textView.selectedRange)
         updateCaretReadout()
     }
@@ -297,30 +297,46 @@ struct CodeEditorView: UIViewRepresentable {
         }
         textView.setPinchZoomEnabled(settings.pinchToZoom)
 
-        textView.recomputeLineCount()
-        DispatchQueue.main.async { proxy.updateCaretReadout() }
+        storage.documentDidChangeWholesale()
+        textView.refreshGutter()
+        DispatchQueue.main.async {
+            proxy.updateCaretReadout()
+            textView.requestVisibleHighlight()
+        }
         return textView
     }
 
     func updateUIView(_ textView: CodeTextView, context: Context) {
         guard let storage = context.coordinator.storage else { return }
+        if context.coordinator.document.id != document.id {
+            // The outgoing buffer may hold keystrokes newer than its document.
+            context.coordinator.syncTextNow()
+        }
         context.coordinator.document = document
         proxy.textView = textView
 
+        // Comparing revisions rather than strings: a string comparison here
+        // would run over the whole document on every SwiftUI update.
         if context.coordinator.documentID != document.id {
             context.coordinator.documentID = document.id
+            context.coordinator.appliedRevision = document.revision
             context.coordinator.isApplyingExternalChange = true
             textView.text = document.text
             textView.selectedRange = NSRange(location: min(document.selectedRange.location,
                                                            (document.text as NSString).length), length: 0)
             context.coordinator.isApplyingExternalChange = false
-        } else if textView.text != document.text && !context.coordinator.isEditing {
+            storage.documentDidChangeWholesale()
+            textView.refreshGutter()
+        } else if context.coordinator.appliedRevision != document.revision {
+            context.coordinator.appliedRevision = document.revision
             context.coordinator.isApplyingExternalChange = true
             let selection = textView.selectedRange
             textView.text = document.text
             textView.selectedRange = NSRange(location: min(selection.location,
                                                            (document.text as NSString).length), length: 0)
             context.coordinator.isApplyingExternalChange = false
+            storage.documentDidChangeWholesale()
+            textView.refreshGutter()
         }
 
         storage.language = document.language
@@ -331,7 +347,6 @@ struct CodeEditorView: UIViewRepresentable {
 
         context.coordinator.toolbar?.configure(language: document.language, theme: theme)
         textView.inputAccessoryView = settings.showKeyboardToolbar ? context.coordinator.toolbar : nil
-        textView.recomputeLineCount()
     }
 
     private func applyConfiguration(to textView: CodeTextView, storage: CodeTextStorage) {
@@ -364,9 +379,11 @@ struct CodeEditorView: UIViewRepresentable {
         weak var storage: CodeTextStorage?
         var toolbar: KeyboardToolbar?
         var documentID: UUID
+        var appliedRevision: Int = 0
         var isApplyingExternalChange = false
         var isEditing = false
         private var saveWorkItem: DispatchWorkItem?
+        private var syncWorkItem: DispatchWorkItem?
 
         init(document: CodeDocument, settings: EditorSettings, proxy: EditorProxy) {
             self.document = document
@@ -379,17 +396,32 @@ struct CodeEditorView: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             guard !isApplyingExternalChange else { return }
-            document.text = textView.text
-            document.isDirty = true
-            (textView as? CodeTextView)?.recomputeLineCount()
+            if !document.isDirty { document.isDirty = true }
+            (textView as? CodeTextView)?.refreshGutter()
             proxy.updateCaretReadout()
+            scheduleTextSync()
+        }
+
+        /// Copies the buffer back into the document — debounced, because the
+        /// copy is O(document size) and typing must not pay that per keystroke.
+        private func scheduleTextSync() {
+            syncWorkItem?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                self?.syncTextNow()
+            }
+            syncWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
+        }
+
+        func syncTextNow() {
+            guard let textView else { return }
+            document.syncFromEditor(text: textView.text, lineCount: textView.numberOfLines)
             scheduleAutoSave()
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
             document.selectedRange = textView.selectedRange
             proxy.updateCaretReadout()
-            textView.setNeedsDisplay()
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
@@ -400,11 +432,15 @@ struct CodeEditorView: UIViewRepresentable {
         func textViewDidEndEditing(_ textView: UITextView) {
             isEditing = false
             textView.setNeedsDisplay()
+            syncTextNow()
             if settings.autoSave { try? document.save() }
         }
 
+        /// Scrolling repaints the gutter (a narrow view) and asks the storage
+        /// to colour what came into view. The text view itself is never
+        /// invalidated here — that was the old stutter.
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            scrollView.setNeedsDisplay()
+            (scrollView as? CodeTextView)?.viewportDidChange()
         }
 
         /// Auto-indent, bracket completion and smart deletion live here.
@@ -513,7 +549,8 @@ struct CodeEditorView: UIViewRepresentable {
             guard settings.autoSave, document.url != nil else { return }
             saveWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
-                guard let self else { return }
+                guard let self, let textView = self.textView else { return }
+                self.document.syncFromEditor(text: textView.text, lineCount: textView.numberOfLines)
                 try? self.document.save()
             }
             saveWorkItem = work

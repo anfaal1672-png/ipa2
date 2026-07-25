@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var showNewFile = false
     @State private var showHelp = false
     @State private var showOnboarding = false
+    @State private var showPreview = false
     @State private var gotoLineText = ""
     @State private var savedFlash = false
 
@@ -84,6 +85,12 @@ struct ContentView: View {
             }
             .environmentObject(settings)
         }
+        .sheet(isPresented: $showPreview) {
+            if let document = workspace.activeDocument {
+                PreviewView(document: document, theme: theme)
+                    .environmentObject(settings)
+            }
+        }
         .sheet(isPresented: $showShareSheet) {
             if let url = workspace.activeDocument?.url {
                 ShareSheet(items: [url])
@@ -109,6 +116,7 @@ struct ContentView: View {
             Text(workspace.errorMessage ?? "")
         }
         .onAppear {
+            workspace.flushEditor = { [weak proxy] in proxy?.flushText() }
             if !settings.hasSeenOnboarding {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showOnboarding = true }
             }
@@ -145,8 +153,15 @@ struct ContentView: View {
             }
             .disabled(workspace.activeDocument == nil)
 
+            toolbarButton(icon: "play.rectangle", title: L("Preview")) {
+                proxy.flushText()
+                showPreview = true
+            }
+            .disabled(workspace.activeDocument == nil)
+
             Menu {
                 Button {
+                    proxy.flushText()
                     workspace.saveActiveDocument()
                     flashSaved()
                 } label: { Label(L("Save"), systemImage: "square.and.arrow.down") }
@@ -182,7 +197,19 @@ struct ContentView: View {
 
                 Divider()
 
-                Button { showShareSheet = true } label: {
+                Button {
+                    proxy.flushText()
+                    showPreview = true
+                } label: {
+                    Label(L("Preview"), systemImage: "play.rectangle")
+                }
+                .disabled(workspace.activeDocument == nil)
+
+                Button {
+                    proxy.flushText()
+                    workspace.saveActiveDocument()
+                    showShareSheet = true
+                } label: {
                     Label(L("Share file"), systemImage: "square.and.arrow.up")
                 }
                 .disabled(workspace.activeDocument?.url == nil)

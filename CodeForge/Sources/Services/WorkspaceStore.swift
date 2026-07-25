@@ -17,6 +17,11 @@ final class WorkspaceStore: ObservableObject {
 
     let documentsURL: URL
 
+    /// Set by the editor screen. Anything that reads `document.text` has to
+    /// pull the live buffer out of the text view first, since the editor only
+    /// mirrors its text on a debounce.
+    var flushEditor: (() -> Void)?
+
     init() {
         let fm = FileManager.default
         let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -61,6 +66,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func close(_ document: CodeDocument) {
+        flushEditor?()
         if document.isDirty { try? document.save() }
         openDocuments.removeAll { $0.id == document.id }
         if activeDocumentID == document.id {
@@ -70,6 +76,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func closeAll() {
+        flushEditor?()
         openDocuments.forEach { if $0.isDirty { try? $0.save() } }
         openDocuments.removeAll()
         activeDocumentID = nil
@@ -77,6 +84,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func saveActiveDocument() {
+        flushEditor?()
         guard let document = activeDocument else { return }
         do {
             if document.url == nil {
@@ -92,6 +100,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func saveAll() {
+        flushEditor?()
         for document in openDocuments where document.isDirty {
             do { try document.save() } catch { errorMessage = error.localizedDescription }
         }
