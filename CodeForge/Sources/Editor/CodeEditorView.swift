@@ -32,6 +32,18 @@ final class EditorProxy: ObservableObject {
         textView.insertText(text)
     }
 
+    func undo() {
+        guard let textView else { return }
+        textView.undoManager?.undo()
+        textView.delegate?.textViewDidChange?(textView)
+    }
+
+    func redo() {
+        guard let textView else { return }
+        textView.undoManager?.redo()
+        textView.delegate?.textViewDidChange?(textView)
+    }
+
     func indentSelection(using unit: String) {
         transformSelectedLines { unit + $0 }
     }
@@ -280,6 +292,11 @@ struct CodeEditorView: UIViewRepresentable {
         context.coordinator.toolbar = toolbar
         textView.inputAccessoryView = settings.showKeyboardToolbar ? toolbar : nil
 
+        textView.onFontSizeChange = { [weak settings = self.settings] size in
+            settings?.fontSize = Double(size)
+        }
+        textView.setPinchZoomEnabled(settings.pinchToZoom)
+
         textView.recomputeLineCount()
         DispatchQueue.main.async { proxy.updateCaretReadout() }
         return textView
@@ -332,6 +349,7 @@ struct CodeEditorView: UIViewRepresentable {
             height: CGFloat.greatestFiniteMagnitude)
         textView.isScrollEnabled = true
         textView.showsHorizontalScrollIndicator = !wraps
+        textView.setPinchZoomEnabled(settings.pinchToZoom)
         textView.setNeedsDisplay()
     }
 

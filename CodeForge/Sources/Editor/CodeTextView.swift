@@ -43,6 +43,40 @@ final class CodeTextView: UITextView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    // MARK: - Pinch to change the text size
+
+    /// Called with the new point size while the user pinches.
+    var onFontSizeChange: ((CGFloat) -> Void)?
+
+    private var pinchStartSize: CGFloat = 14
+    private weak var pinchRecognizer: UIPinchGestureRecognizer?
+
+    func setPinchZoomEnabled(_ enabled: Bool) {
+        if enabled, pinchRecognizer == nil {
+            let recognizer = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+            addGestureRecognizer(recognizer)
+            pinchRecognizer = recognizer
+        } else if !enabled, let recognizer = pinchRecognizer {
+            removeGestureRecognizer(recognizer)
+            pinchRecognizer = nil
+        }
+    }
+
+    @objc private func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
+        switch recognizer.state {
+        case .began:
+            pinchStartSize = codeFont.pointSize
+        case .changed:
+            let proposed = (pinchStartSize * recognizer.scale).rounded()
+            let clamped = min(30, max(9, proposed))
+            if clamped != codeFont.pointSize {
+                onFontSizeChange?(clamped)
+            }
+        default:
+            break
+        }
+    }
+
     private func applyTheme() {
         backgroundColor = theme.background
         tintColor = theme.caret

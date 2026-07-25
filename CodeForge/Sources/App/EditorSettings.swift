@@ -24,6 +24,45 @@ final class EditorSettings: ObservableObject {
     @AppStorage("lineSpacing") var lineSpacing: Double = 2 { didSet { objectWillChange.send() } }
     @AppStorage("followSystemAppearance") var followSystemAppearance: Bool = false { didSet { objectWillChange.send() } }
     @AppStorage("lightThemeID") var lightThemeID: String = Themes.xcodeLight.id { didSet { objectWillChange.send() } }
+    @AppStorage("pinchToZoom") var pinchToZoom: Bool = true { didSet { objectWillChange.send() } }
+    @AppStorage("hasSeenOnboarding") var hasSeenOnboarding: Bool = false { didSet { objectWillChange.send() } }
+    @AppStorage("appLanguage") var appLanguageRaw: String = AppLanguage.system.rawValue {
+        didSet {
+            Localization.shared.language = appLanguage
+            objectWillChange.send()
+        }
+    }
+
+    var appLanguage: AppLanguage {
+        get { AppLanguage(rawValue: appLanguageRaw) ?? .system }
+        set { appLanguageRaw = newValue.rawValue }
+    }
+
+    private init() {
+        Localization.shared.language = AppLanguage(
+            rawValue: UserDefaults.standard.string(forKey: "appLanguage") ?? AppLanguage.system.rawValue
+        ) ?? .system
+    }
+
+    func resetToDefaults() {
+        themeID = Themes.midnight.id
+        lightThemeID = Themes.xcodeLight.id
+        fontSize = 14
+        fontName = FontChoice.system.rawValue
+        tabWidth = 4
+        useSpaces = true
+        wrapLines = true
+        showLineNumbers = true
+        highlightCurrentLine = true
+        showIndentGuides = true
+        syntaxHighlighting = true
+        autoIndent = true
+        autoCloseBrackets = true
+        showKeyboardToolbar = true
+        autoSave = true
+        pinchToZoom = true
+        followSystemAppearance = false
+    }
 
     enum FontChoice: String, CaseIterable, Identifiable {
         case system = "System Mono"

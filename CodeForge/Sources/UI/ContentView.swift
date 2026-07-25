@@ -15,7 +15,11 @@ struct ContentView: View {
     @State private var showGoToLine = false
     @State private var showShareSheet = false
     @State private var showFindBar = false
+    @State private var showNewFile = false
+    @State private var showHelp = false
+    @State private var showOnboarding = false
     @State private var gotoLineText = ""
+    @State private var savedFlash = false
 
     private var theme: EditorTheme { settings.theme(for: colorScheme) }
 
@@ -40,7 +44,7 @@ struct ContentView: View {
                         .id(document.id)
                         .ignoresSafeArea(.container, edges: .bottom)
                 } else {
-                    WelcomeView(theme: theme, showBrowser: $showBrowser)
+                    WelcomeView(theme: theme, showBrowser: $showBrowser, showNewFile: $showNewFile)
                 }
 
                 StatusBarView(theme: theme, proxy: proxy,
@@ -48,17 +52,37 @@ struct ContentView: View {
                               showLanguagePicker: $showLanguagePicker,
                               showGoToLine: $showGoToLine)
             }
+
+            if savedFlash {
+                toast(L("Saved"), icon: "checkmark.circle.fill")
+            }
         }
         .preferredColorScheme(settings.followSystemAppearance ? nil : (theme.isDark ? .dark : .light))
         .safeAreaInset(edge: .top, spacing: 0) { toolbar }
         .sheet(isPresented: $showBrowser) {
-            FileBrowserView(theme: theme).environmentObject(workspace)
+            FileBrowserView(theme: theme)
+                .environmentObject(workspace)
+                .environmentObject(settings)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView().environmentObject(settings)
         }
+        .sheet(isPresented: $showHelp) {
+            HelpView(theme: theme).environmentObject(settings)
+        }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingView(theme: theme).environmentObject(settings)
+        }
         .sheet(isPresented: $showProjectSearch) {
-            ProjectSearchView(theme: theme).environmentObject(workspace)
+            ProjectSearchView(theme: theme)
+                .environmentObject(workspace)
+                .environmentObject(settings)
+        }
+        .sheet(isPresented: $showNewFile) {
+            NewFileSheet(folder: workspace.root) { name, contents in
+                workspace.createFile(named: name, in: workspace.root, contents: contents)
+            }
+            .environmentObject(settings)
         }
         .sheet(isPresented: $showShareSheet) {
             if let url = workspace.activeDocument?.url {
@@ -67,105 +91,165 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showLanguagePicker) {
             LanguagePickerView(document: workspace.activeDocument, theme: theme)
+                .environmentObject(settings)
         }
-        .alert("Go to line", isPresented: $showGoToLine) {
-            TextField("Line number", text: $gotoLineText).keyboardType(.numberPad)
-            Button("Cancel", role: .cancel) { }
-            Button("Go") {
+        .alert(L("Go to line"), isPresented: $showGoToLine) {
+            TextField(L("Line number"), text: $gotoLineText).keyboardType(.numberPad)
+            Button(L("Cancel"), role: .cancel) { }
+            Button(L("Go")) {
                 if let line = Int(gotoLineText) { proxy.goToLine(line) }
                 gotoLineText = ""
             }
         }
-        .alert("Something went wrong",
+        .alert(L("Something went wrong"),
                isPresented: Binding(get: { workspace.errorMessage != nil },
                                     set: { if !$0 { workspace.errorMessage = nil } })) {
-            Button("OK", role: .cancel) { workspace.errorMessage = nil }
+            Button(L("OK"), role: .cancel) { workspace.errorMessage = nil }
         } message: {
             Text(workspace.errorMessage ?? "")
+        }
+        .onAppear {
+            if !settings.hasSeenOnboarding {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showOnboarding = true }
+            }
         }
     }
 
     // MARK: - Toolbar
 
     private var toolbar: some View {
-        HStack(spacing: 14) {
-            Button { showBrowser = true } label: {
-                Image(systemName: "folder")
+        HStack(spacing: 8) {
+            toolbarButton(icon: "folder", title: L("Project")) { showBrowser = true }
+            toolbarButton(icon: "doc.badge.plus", title: L("New file")) { showNewFile = true }
+
+            Spacer(minLength: 4)
+
+            VStack(spacing: 1) {
+                Text(workspace.activeDocument?.name ?? "CodeForge")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if let document = workspace.activeDocument {
+                    Text(document.isDirty ? L("Unsaved changes") : L("Saved"))
+                        .font(.system(size: 9))
+                        .foregroundColor(Color(document.isDirty ? theme.accent : theme.gutterForeground))
+                }
             }
-            .accessibilityLabel("Project browser")
+            .foregroundColor(Color(theme.foreground))
 
-            Button { workspace.newUntitledDocument() } label: {
-                Image(systemName: "doc.badge.plus")
-            }
-            .accessibilityLabel("New file")
+            Spacer(minLength: 4)
 
-            Spacer(minLength: 0)
-
-            Text(workspace.activeDocument?.name ?? "CodeForge")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundColor(Color(theme.foreground))
-
-            Spacer(minLength: 0)
-
-            Button {
+            toolbarButton(icon: showFindBar ? "magnifyingglass.circle.fill" : "magnifyingglass",
+                          title: L("Find")) {
                 showFindBar.toggle()
-            } label: {
-                Image(systemName: showFindBar ? "magnifyingglass.circle.fill" : "magnifyingglass")
             }
             .disabled(workspace.activeDocument == nil)
-            .accessibilityLabel("Find in file")
 
             Menu {
                 Button {
                     workspace.saveActiveDocument()
-                } label: { Label("Save", systemImage: "square.and.arrow.down") }
+                    flashSaved()
+                } label: { Label(L("Save"), systemImage: "square.and.arrow.down") }
+                    .disabled(workspace.activeDocument == nil)
 
-                Button { proxy.toggleComment(language: workspace.activeDocument?.language ?? LanguageRegistry.plainText) } label: {
-                    Label("Toggle comment", systemImage: "text.bubble")
-                }
+                Button { proxy.undo() } label: { Label(L("Undo"), systemImage: "arrow.uturn.backward") }
+                Button { proxy.redo() } label: { Label(L("Redo"), systemImage: "arrow.uturn.forward") }
+
+                Divider()
+
+                Button {
+                    proxy.toggleComment(language: workspace.activeDocument?.language ?? LanguageRegistry.plainText)
+                } label: { Label(L("Toggle comment"), systemImage: "text.bubble") }
                 Button { proxy.duplicateLine() } label: {
-                    Label("Duplicate line", systemImage: "plus.square.on.square")
+                    Label(L("Duplicate line"), systemImage: "plus.square.on.square")
                 }
                 Button(role: .destructive) { proxy.deleteLine() } label: {
-                    Label("Delete line", systemImage: "trash")
+                    Label(L("Delete line"), systemImage: "trash")
                 }
 
                 Divider()
 
                 Button { showProjectSearch = true } label: {
-                    Label("Search in project", systemImage: "text.magnifyingglass")
+                    Label(L("Search in project"), systemImage: "text.magnifyingglass")
                 }
                 Button { showGoToLine = true } label: {
-                    Label("Go to line…", systemImage: "arrow.right.to.line")
+                    Label(L("Go to line…"), systemImage: "arrow.right.to.line")
                 }
                 Button { showLanguagePicker = true } label: {
-                    Label("Language: \(workspace.activeDocument?.language.name ?? "—")",
+                    Label("\(L("Language")): \(workspace.activeDocument?.language.name ?? "—")",
                           systemImage: "chevron.left.forwardslash.chevron.right")
                 }
 
                 Divider()
 
                 Button { showShareSheet = true } label: {
-                    Label("Share file", systemImage: "square.and.arrow.up")
+                    Label(L("Share file"), systemImage: "square.and.arrow.up")
                 }
                 .disabled(workspace.activeDocument?.url == nil)
 
+                Button { showHelp = true } label: {
+                    Label(L("Help"), systemImage: "questionmark.circle")
+                }
                 Button { showSettings = true } label: {
-                    Label("Settings", systemImage: "gearshape")
+                    Label(L("Settings"), systemImage: "gearshape")
                 }
             } label: {
-                Image(systemName: "ellipsis.circle")
+                VStack(spacing: 2) {
+                    Image(systemName: "ellipsis.circle").font(.system(size: 18, weight: .medium))
+                    Text(L("Settings")).font(.system(size: 9))
+                }
+                .frame(minWidth: 46)
             }
         }
-        .font(.system(size: 17, weight: .medium))
         .tint(Color(theme.accent))
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
         .background(Color(theme.gutterBackground).opacity(0.98))
         .overlay(alignment: .bottom) {
             Rectangle().frame(height: 0.5).foregroundColor(Color(theme.indentGuide))
+        }
+    }
+
+    /// Icon plus caption: a bare glyph is guessable only if you already know the
+    /// app, and this row is the first thing a new user meets.
+    private func toolbarButton(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: icon).font(.system(size: 18, weight: .medium))
+                Text(title)
+                    .font(.system(size: 9))
+                    .lineLimit(1)
+            }
+            .frame(minWidth: 46)
+        }
+        .accessibilityLabel(title)
+    }
+
+    private func toast(_ text: String, icon: String) -> some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                Text(text).font(.subheadline.weight(.medium))
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .background(
+                Capsule().fill(Color(theme.currentLine))
+                    .overlay(Capsule().stroke(Color(theme.indentGuide), lineWidth: 0.5))
+            )
+            .foregroundColor(Color(theme.foreground))
+            .padding(.bottom, 90)
+        }
+        .transition(.opacity)
+        .allowsHitTesting(false)
+    }
+
+    private func flashSaved() {
+        withAnimation(.easeOut(duration: 0.2)) { savedFlash = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+            withAnimation(.easeIn(duration: 0.25)) { savedFlash = false }
         }
     }
 }
@@ -182,11 +266,10 @@ struct StatusBarView: View {
     var body: some View {
         HStack(spacing: 12) {
             Button { showGoToLine = true } label: {
-                Label("Ln \(proxy.caretLine), Col \(proxy.caretColumn)", systemImage: "text.cursor")
-                    .labelStyle(.titleOnly)
+                Text("\(L("Ln")) \(proxy.caretLine) · \(L("Col")) \(proxy.caretColumn)")
             }
             if proxy.selectionLength > 0 {
-                Text("(\(proxy.selectionLength) selected)")
+                Text("\(proxy.selectionLength) \(L("selected"))")
                     .foregroundColor(Color(theme.gutterForeground))
             }
             Spacer()
@@ -194,10 +277,13 @@ struct StatusBarView: View {
                 if document.isDirty {
                     Circle().fill(Color(theme.accent)).frame(width: 6, height: 6)
                 }
-                Text("\(document.lineCount) lines")
+                Text("\(document.lineCount) \(L("lines"))")
                     .foregroundColor(Color(theme.gutterForeground))
                 Button { showLanguagePicker = true } label: {
-                    Text(document.language.name)
+                    HStack(spacing: 3) {
+                        Text(document.language.name)
+                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 7))
+                    }
                 }
             }
         }
@@ -219,6 +305,7 @@ struct WelcomeView: View {
     let theme: EditorTheme
     @EnvironmentObject private var workspace: WorkspaceStore
     @Binding var showBrowser: Bool
+    @Binding var showNewFile: Bool
 
     var body: some View {
         VStack(spacing: 18) {
@@ -229,7 +316,7 @@ struct WelcomeView: View {
             Text("CodeForge")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundColor(Color(theme.foreground))
-            Text("A code editor for every language you carry around.")
+            Text(L("A code editor for every language you carry around."))
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundColor(Color(theme.gutterForeground))
@@ -237,30 +324,53 @@ struct WelcomeView: View {
 
             VStack(spacing: 10) {
                 Button {
-                    showBrowser = true
+                    showNewFile = true
                 } label: {
-                    Label("Open a file", systemImage: "folder")
-                        .frame(maxWidth: 260)
+                    Label(L("New file"), systemImage: "doc.badge.plus")
+                        .frame(maxWidth: 280)
+                        .padding(.vertical, 4)
                 }
                 .buttonStyle(.borderedProminent)
 
                 Button {
-                    workspace.newUntitledDocument()
+                    showBrowser = true
                 } label: {
-                    Label("New file", systemImage: "doc.badge.plus")
-                        .frame(maxWidth: 260)
+                    Label(L("Open a file"), systemImage: "folder")
+                        .frame(maxWidth: 280)
+                        .padding(.vertical, 4)
                 }
                 .buttonStyle(.bordered)
+
+                Button {
+                    openSample()
+                } label: {
+                    Label(L("Open the sample project"), systemImage: "sparkles")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(theme.accent))
+                .padding(.top, 4)
             }
             .tint(Color(theme.accent))
 
-            Text("\(LanguageRegistry.shared.all.count) languages · \(Themes.all.count) themes")
+            Text("\(LanguageRegistry.shared.all.count) \(L("languages")) · \(Themes.all.count) \(L("themes"))")
                 .font(.caption2)
                 .foregroundColor(Color(theme.gutterForeground))
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(theme.background))
+    }
+
+    private func openSample() {
+        let readme = workspace.documentsURL
+            .appendingPathComponent("Welcome")
+            .appendingPathComponent("README.md")
+        if FileManager.default.fileExists(atPath: readme.path) {
+            workspace.open(url: readme)
+        } else {
+            showBrowser = true
+        }
     }
 }
 

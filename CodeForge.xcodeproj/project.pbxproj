@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		299F31568971B17789D027C2 /* CodeForgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3F49385C801EF8E4D4CBA2 /* CodeForgeApp.swift */; };
 		D113F7FE1F0F463899523CF8 /* EditorSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B098467754EC6F043BE8DE85 /* EditorSettings.swift */; };
+		1A503B30DDB804C7A9C7A892 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C75B283F3AEDDE79D10BC9 /* Localization.swift */; };
 		5C16EE86A840DEB5B0BD3321 /* CodeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C73E1B5DB3C04BDA8941876 /* CodeEditorView.swift */; };
 		3EC0D45E94E4BBABA7B95A58 /* CodeTextStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A845B123DFEF4BE91821EF /* CodeTextStorage.swift */; };
 		C76DBDB02745944734324353 /* CodeTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB35C6889A3480CD2D5866B8 /* CodeTextView.swift */; };
@@ -27,11 +28,14 @@
 		268AD95C6240FB9F396DE9EF /* Languages+Web.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6CC0FBA9001F6584430BC6 /* Languages+Web.swift */; };
 		ACEFE1CB99E541ACBEEB68CC /* CodeDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B78BF588682431EAFBABCC0 /* CodeDocument.swift */; };
 		8CE8099BEEEB22255A26B75E /* FileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4FE4D740E35467482015F0F /* FileItem.swift */; };
+		E9AB5362FC65EBC3BD7AF236 /* FileTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F26DB06251332993DF2896 /* FileTemplate.swift */; };
 		D7A2C4D2C7C8FA99A489435D /* SampleFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A2772EDD41A9F20E6B8674 /* SampleFiles.swift */; };
 		B16CAFAE7E1E13BE2842A9B9 /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE60CA16319DC3CE25CC739F /* WorkspaceStore.swift */; };
 		0150ED9B183C3D535BD0FB5E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB299F63A016C6E28F37295 /* ContentView.swift */; };
 		75CC8255F33CB42F8F7B48B4 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7910446D7AFBA0A2653C10A3 /* FileBrowserView.swift */; };
 		788C5236E498BE7E66ABB5A6 /* FindBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C096E5F0819E509135C065 /* FindBarView.swift */; };
+		863D4C33DCFDD42754E1DE09 /* NewFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51142555127CE459843953D3 /* NewFileSheet.swift */; };
+		39297934FB9FF9FAA4ADEB2D /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 325D84ADE6DDC36BCA77DA57 /* OnboardingView.swift */; };
 		AD83B15917D92417328687DB /* ProjectSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 481A0FE3ADA4E2BCF973C8C9 /* ProjectSearchView.swift */; };
 		2544CA4FD1C34E13025D75DD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310DFF6FE17BF6FF33A2CBB9 /* SettingsView.swift */; };
 		FE49D64AF5B1765C7F9CDFDF /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3671BDE16458F3BE7B16035 /* TabBarView.swift */; };
@@ -41,6 +45,7 @@
 /* Begin PBXFileReference section */
 		2E3F49385C801EF8E4D4CBA2 /* CodeForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeForgeApp.swift"; sourceTree = "<group>"; };
 		B098467754EC6F043BE8DE85 /* EditorSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorSettings.swift"; sourceTree = "<group>"; };
+		E9C75B283F3AEDDE79D10BC9 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Localization.swift"; sourceTree = "<group>"; };
 		9C73E1B5DB3C04BDA8941876 /* CodeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeEditorView.swift"; sourceTree = "<group>"; };
 		D9A845B123DFEF4BE91821EF /* CodeTextStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeTextStorage.swift"; sourceTree = "<group>"; };
 		EB35C6889A3480CD2D5866B8 /* CodeTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeTextView.swift"; sourceTree = "<group>"; };
@@ -59,11 +64,14 @@
 		9E6CC0FBA9001F6584430BC6 /* Languages+Web.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+Web.swift"; sourceTree = "<group>"; };
 		2B78BF588682431EAFBABCC0 /* CodeDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeDocument.swift"; sourceTree = "<group>"; };
 		C4FE4D740E35467482015F0F /* FileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileItem.swift"; sourceTree = "<group>"; };
+		A3F26DB06251332993DF2896 /* FileTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileTemplate.swift"; sourceTree = "<group>"; };
 		98A2772EDD41A9F20E6B8674 /* SampleFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SampleFiles.swift"; sourceTree = "<group>"; };
 		BE60CA16319DC3CE25CC739F /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkspaceStore.swift"; sourceTree = "<group>"; };
 		5BB299F63A016C6E28F37295 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
 		7910446D7AFBA0A2653C10A3 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileBrowserView.swift"; sourceTree = "<group>"; };
 		58C096E5F0819E509135C065 /* FindBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FindBarView.swift"; sourceTree = "<group>"; };
+		51142555127CE459843953D3 /* NewFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewFileSheet.swift"; sourceTree = "<group>"; };
+		325D84ADE6DDC36BCA77DA57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OnboardingView.swift"; sourceTree = "<group>"; };
 		481A0FE3ADA4E2BCF973C8C9 /* ProjectSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectSearchView.swift"; sourceTree = "<group>"; };
 		310DFF6FE17BF6FF33A2CBB9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
 		D3671BDE16458F3BE7B16035 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TabBarView.swift"; sourceTree = "<group>"; };
@@ -87,6 +95,7 @@
 			children = (
 				2E3F49385C801EF8E4D4CBA2 /* child */,
 				B098467754EC6F043BE8DE85 /* child */,
+				E9C75B283F3AEDDE79D10BC9 /* child */,
 			);
 			path = "App";
 			sourceTree = "<group>";
@@ -126,6 +135,7 @@
 			children = (
 				2B78BF588682431EAFBABCC0 /* child */,
 				C4FE4D740E35467482015F0F /* child */,
+				A3F26DB06251332993DF2896 /* child */,
 				98A2772EDD41A9F20E6B8674 /* child */,
 			);
 			path = "Models";
@@ -145,6 +155,8 @@
 				5BB299F63A016C6E28F37295 /* child */,
 				7910446D7AFBA0A2653C10A3 /* child */,
 				58C096E5F0819E509135C065 /* child */,
+				51142555127CE459843953D3 /* child */,
+				325D84ADE6DDC36BCA77DA57 /* child */,
 				481A0FE3ADA4E2BCF973C8C9 /* child */,
 				310DFF6FE17BF6FF33A2CBB9 /* child */,
 				D3671BDE16458F3BE7B16035 /* child */,
@@ -261,6 +273,7 @@
 			files = (
 				299F31568971B17789D027C2 /* CodeForgeApp.swift in Sources */,
 				D113F7FE1F0F463899523CF8 /* EditorSettings.swift in Sources */,
+				1A503B30DDB804C7A9C7A892 /* Localization.swift in Sources */,
 				5C16EE86A840DEB5B0BD3321 /* CodeEditorView.swift in Sources */,
 				3EC0D45E94E4BBABA7B95A58 /* CodeTextStorage.swift in Sources */,
 				C76DBDB02745944734324353 /* CodeTextView.swift in Sources */,
@@ -279,11 +292,14 @@
 				268AD95C6240FB9F396DE9EF /* Languages+Web.swift in Sources */,
 				ACEFE1CB99E541ACBEEB68CC /* CodeDocument.swift in Sources */,
 				8CE8099BEEEB22255A26B75E /* FileItem.swift in Sources */,
+				E9AB5362FC65EBC3BD7AF236 /* FileTemplate.swift in Sources */,
 				D7A2C4D2C7C8FA99A489435D /* SampleFiles.swift in Sources */,
 				B16CAFAE7E1E13BE2842A9B9 /* WorkspaceStore.swift in Sources */,
 				0150ED9B183C3D535BD0FB5E /* ContentView.swift in Sources */,
 				75CC8255F33CB42F8F7B48B4 /* FileBrowserView.swift in Sources */,
 				788C5236E498BE7E66ABB5A6 /* FindBarView.swift in Sources */,
+				863D4C33DCFDD42754E1DE09 /* NewFileSheet.swift in Sources */,
+				39297934FB9FF9FAA4ADEB2D /* OnboardingView.swift in Sources */,
 				AD83B15917D92417328687DB /* ProjectSearchView.swift in Sources */,
 				2544CA4FD1C34E13025D75DD /* SettingsView.swift in Sources */,
 				FE49D64AF5B1765C7F9CDFDF /* TabBarView.swift in Sources */,

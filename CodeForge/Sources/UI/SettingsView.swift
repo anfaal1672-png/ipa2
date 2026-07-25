@@ -4,92 +4,133 @@ struct SettingsView: View {
 
     @EnvironmentObject private var settings: EditorSettings
     @Environment(\.dismiss) private var dismiss
+    @State private var showResetConfirmation = false
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Appearance") {
+                Section(L("Language")) {
+                    Picker(L("App language"), selection: Binding(
+                        get: { settings.appLanguage },
+                        set: { settings.appLanguage = $0 })) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.displayName).tag(language)
+                        }
+                    }
+                }
+
+                Section(L("Appearance")) {
                     NavigationLink {
-                        ThemeGalleryView(selection: $settings.themeID, title: "Theme")
+                        ThemeGalleryView(selection: $settings.themeID, title: L("Theme"))
                             .environmentObject(settings)
                     } label: {
-                        LabeledContent("Theme", value: Themes.theme(id: settings.themeID).name)
+                        LabeledContent(L("Theme"), value: Themes.theme(id: settings.themeID).name)
                     }
 
-                    Toggle("Follow system light/dark", isOn: $settings.followSystemAppearance)
+                    Toggle(L("Follow system light/dark"), isOn: $settings.followSystemAppearance)
 
                     if settings.followSystemAppearance {
                         NavigationLink {
-                            ThemeGalleryView(selection: $settings.lightThemeID, title: "Light theme")
+                            ThemeGalleryView(selection: $settings.lightThemeID, title: L("Light theme"))
                                 .environmentObject(settings)
                         } label: {
-                            LabeledContent("Light theme",
+                            LabeledContent(L("Light theme"),
                                            value: Themes.theme(id: settings.lightThemeID).name)
                         }
                     }
                 }
 
-                Section("Typography") {
-                    Picker("Font", selection: $settings.fontName) {
+                Section(L("Typography")) {
+                    Picker(L("Font"), selection: $settings.fontName) {
                         ForEach(EditorSettings.FontChoice.allCases) { choice in
                             Text(choice.rawValue).tag(choice.rawValue)
                         }
                     }
-                    Stepper(value: $settings.fontSize, in: 9...30, step: 1) {
-                        LabeledContent("Size", value: "\(Int(settings.fontSize)) pt")
+                    HStack {
+                        Text(L("Size"))
+                        Spacer()
+                        Button {
+                            settings.fontSize = max(9, settings.fontSize - 1)
+                        } label: {
+                            Image(systemName: "minus.circle").font(.system(size: 20))
+                        }
+                        .buttonStyle(.plain)
+                        Text("\(Int(settings.fontSize))")
+                            .font(.body.monospacedDigit())
+                            .frame(minWidth: 32)
+                        Button {
+                            settings.fontSize = min(30, settings.fontSize + 1)
+                        } label: {
+                            Image(systemName: "plus.circle").font(.system(size: 20))
+                        }
+                        .buttonStyle(.plain)
                     }
                     HStack {
-                        Text("Preview")
+                        Text(L("Preview"))
                         Spacer()
                         Text("let x = 42")
                             .font(.system(size: CGFloat(settings.fontSize), design: .monospaced))
                             .foregroundColor(.secondary)
                     }
+                    Toggle(L("Pinch to change text size"), isOn: $settings.pinchToZoom)
                 }
 
-                Section("Editing") {
+                Section(L("Editing")) {
                     Stepper(value: $settings.tabWidth, in: 1...8) {
-                        LabeledContent("Tab width", value: "\(settings.tabWidth)")
+                        LabeledContent(L("Tab width"), value: "\(settings.tabWidth)")
                     }
-                    Toggle("Insert spaces instead of tabs", isOn: $settings.useSpaces)
-                    Toggle("Auto indent", isOn: $settings.autoIndent)
-                    Toggle("Auto close brackets & quotes", isOn: $settings.autoCloseBrackets)
-                    Toggle("Auto save", isOn: $settings.autoSave)
+                    Toggle(L("Insert spaces instead of tabs"), isOn: $settings.useSpaces)
+                    Toggle(L("Auto indent"), isOn: $settings.autoIndent)
+                    Toggle(L("Auto close brackets & quotes"), isOn: $settings.autoCloseBrackets)
+                    Toggle(L("Auto save"), isOn: $settings.autoSave)
                 }
 
-                Section("Display") {
-                    Toggle("Syntax highlighting", isOn: $settings.syntaxHighlighting)
-                    Toggle("Line numbers", isOn: $settings.showLineNumbers)
-                    Toggle("Wrap long lines", isOn: $settings.wrapLines)
-                    Toggle("Highlight current line", isOn: $settings.highlightCurrentLine)
-                    Toggle("Indentation guides", isOn: $settings.showIndentGuides)
-                    Toggle("Code keyboard row", isOn: $settings.showKeyboardToolbar)
+                Section(L("Display")) {
+                    Toggle(L("Syntax highlighting"), isOn: $settings.syntaxHighlighting)
+                    Toggle(L("Line numbers"), isOn: $settings.showLineNumbers)
+                    Toggle(L("Wrap long lines"), isOn: $settings.wrapLines)
+                    Toggle(L("Highlight current line"), isOn: $settings.highlightCurrentLine)
+                    Toggle(L("Indentation guides"), isOn: $settings.showIndentGuides)
+                    Toggle(L("Code keyboard row"), isOn: $settings.showKeyboardToolbar)
                 }
 
-                Section("Languages") {
+                Section(L("Languages")) {
                     NavigationLink {
                         LanguageListView()
                     } label: {
-                        LabeledContent("Supported languages",
+                        LabeledContent(L("Supported languages"),
                                        value: "\(LanguageRegistry.shared.all.count)")
                     }
                 }
 
                 Section {
-                    LabeledContent("Version", value: Bundle.main.shortVersion)
-                    LabeledContent("Build", value: Bundle.main.buildNumber)
+                    Button(role: .destructive) {
+                        showResetConfirmation = true
+                    } label: {
+                        Label(L("Reset to defaults"), systemImage: "arrow.counterclockwise")
+                    }
+                }
+
+                Section {
+                    LabeledContent(L("Version"), value: Bundle.main.shortVersion)
+                    LabeledContent(L("Build"), value: Bundle.main.buildNumber)
                 } header: {
-                    Text("About")
+                    Text(L("About"))
                 } footer: {
-                    Text("CodeForge — an offline code editor. Files live in the app's Documents folder and are reachable from the Files app.")
+                    Text(L("CodeForge — an offline code editor. Files live in the app's Documents folder and are reachable from the Files app."))
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(L("Settings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button(L("Done")) { dismiss() }
                 }
+            }
+            .confirmationDialog(L("Reset to defaults"), isPresented: $showResetConfirmation,
+                                titleVisibility: .visible) {
+                Button(L("Reset to defaults"), role: .destructive) { settings.resetToDefaults() }
+                Button(L("Cancel"), role: .cancel) { }
             }
         }
     }
@@ -108,13 +149,13 @@ struct ThemeGalleryView: View {
                     ThemeSwatch(theme: theme)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(theme.name).foregroundColor(.primary)
-                        Text(theme.isDark ? "Dark" : "Light")
+                        Text(theme.isDark ? L("Dark") : L("Light"))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                     Spacer()
                     if selection == theme.id {
-                        Image(systemName: "checkmark").foregroundColor(.accentColor)
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.accentColor)
                     }
                 }
             }
@@ -178,8 +219,8 @@ struct LanguageListView: View {
                 }
             }
         }
-        .searchable(text: $filter, prompt: "Search languages")
-        .navigationTitle("Languages")
+        .searchable(text: $filter, prompt: L("Search languages"))
+        .navigationTitle(L("Supported languages"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -212,15 +253,15 @@ struct LanguagePickerView: View {
                     }
                 }
             }
-            .searchable(text: $filter, prompt: "Search languages")
-            .navigationTitle("Syntax")
+            .searchable(text: $filter, prompt: L("Search languages"))
+            .navigationTitle(L("Syntax"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(L("Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Auto") {
+                    Button(L("Auto")) {
                         document?.languageOverride = nil
                         dismiss()
                     }

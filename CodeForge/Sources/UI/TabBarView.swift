@@ -23,14 +23,14 @@ struct TabBarView: View {
                                     workspace.openDocuments
                                         .filter { $0.id != document.id }
                                         .forEach { workspace.close($0) }
-                                } label: { Label("Close others", systemImage: "xmark.square") }
+                                } label: { Label(L("Close others"), systemImage: "xmark.square") }
                                 Button(role: .destructive) {
                                     workspace.closeAll()
-                                } label: { Label("Close all", systemImage: "xmark.square.fill") }
+                                } label: { Label(L("Close all"), systemImage: "xmark.square.fill") }
                                 if let url = document.url {
                                     Button {
                                         UIPasteboard.general.string = url.lastPathComponent
-                                    } label: { Label("Copy name", systemImage: "doc.on.doc") }
+                                    } label: { Label(L("Copy name"), systemImage: "doc.on.doc") }
                                 }
                             }
                     }

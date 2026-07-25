@@ -22,7 +22,7 @@ struct ProjectSearchView: View {
                     Toggle(".*", isOn: $useRegex).toggleStyle(.button)
                     Spacer()
                     if isSearching { ProgressView().controlSize(.small) }
-                    Text(hasSearched ? "\(hits.count) matches" : "")
+                    Text(hasSearched ? "\(hits.count) \(L("matches"))" : "")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -43,7 +43,7 @@ struct ProjectSearchView: View {
                                             .font(.system(size: 12, design: .monospaced))
                                             .lineLimit(2)
                                             .foregroundColor(.primary)
-                                        Text("line \(hit.lineNumber)")
+                                        Text("\(hit.lineNumber) \(L("line"))")
                                             .font(.caption2)
                                             .foregroundColor(.secondary)
                                     }
@@ -55,17 +55,17 @@ struct ProjectSearchView: View {
                 .listStyle(.plain)
                 .overlay {
                     if hasSearched && hits.isEmpty && !isSearching {
-                        ContentUnavailableFallback(text: "No matches")
+                        ContentUnavailableFallback(text: L("No matches"))
                     }
                 }
             }
-            .navigationTitle("Search in project")
+            .navigationTitle(L("Search in project"))
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: "Search all files")
+                        prompt: L("Search all files"))
             .onSubmit(of: .search) { runSearch() }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(L("Done")) { dismiss() } }
             }
         }
     }

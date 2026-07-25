@@ -99,14 +99,14 @@ final class WorkspaceStore: ObservableObject {
 
     // MARK: - File operations
 
-    func createFile(named name: String, in folder: FileItem) {
+    func createFile(named name: String, in folder: FileItem, contents: String = "") {
         let target = folder.url.appendingPathComponent(name)
         guard !FileManager.default.fileExists(atPath: target.path) else {
-            errorMessage = "\"\(name)\" already exists."
+            errorMessage = "「\(name)」\(L("already exists."))"
             return
         }
         do {
-            try "".write(to: target, atomically: true, encoding: .utf8)
+            try contents.write(to: target, atomically: true, encoding: .utf8)
             refreshTree()
             expandedFolders.insert(folder.url.path)
             open(url: target)

@@ -25,7 +25,7 @@ struct FindBarView: View {
                         .frame(width: 16)
                 }
 
-                field(text: $query, prompt: "Find", isPrimary: true)
+                field(text: $query, prompt: L("Find"), isPrimary: true)
 
                 Text(proxy.matchCount > 0 ? "\(proxy.currentMatch)/\(proxy.matchCount)" : "0")
                     .font(.system(size: 11, design: .monospaced))
@@ -45,12 +45,12 @@ struct FindBarView: View {
             if showReplace {
                 HStack(spacing: 8) {
                     Spacer().frame(width: 16)
-                    field(text: $replacement, prompt: "Replace with", isPrimary: false)
-                    Button("Replace") {
+                    field(text: $replacement, prompt: L("Replace with"), isPrimary: false)
+                    Button(L("Replace")) {
                         proxy.replaceCurrent(with: replacement, query: query, options: options)
                     }
                     .disabled(proxy.matchCount == 0)
-                    Button("All") {
+                    Button(L("All")) {
                         proxy.replaceAll(with: replacement, query: query, options: options)
                     }
                     .disabled(proxy.matchCount == 0)
@@ -59,9 +59,9 @@ struct FindBarView: View {
             }
 
             HStack(spacing: 10) {
-                toggle("Aa", isOn: $options.caseSensitive, help: "Case sensitive")
-                toggle("W", isOn: $options.wholeWord, help: "Whole word")
-                toggle(".*", isOn: $options.useRegex, help: "Regular expression")
+                toggle("Aa", isOn: $options.caseSensitive, help: L("Case sensitive"))
+                toggle("W", isOn: $options.wholeWord, help: L("Whole word"))
+                toggle(".*", isOn: $options.useRegex, help: L("Regular expression"))
                 Spacer()
             }
             .padding(.leading, 24)

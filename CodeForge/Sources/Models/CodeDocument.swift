@@ -66,7 +66,7 @@ final class CodeDocument: ObservableObject, Identifiable {
         }
         guard let contents else {
             throw NSError(domain: "CodeForge", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "This file is not text (binary content)."
+                NSLocalizedDescriptionKey: L("This file is not text (binary content).")
             ])
         }
         let document = CodeDocument(url: url, text: contents)

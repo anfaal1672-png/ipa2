@@ -13,35 +13,44 @@ enum SampleFiles {
     ]
 
     static let readme = """
-    # CodeForge
+    # CodeForge へようこそ
 
-    A full-featured code editor for iPhone.
+    iPhone で本格的にコードが書けるエディタです。
+    (English notes are at the bottom.)
 
-    ## What is here
+    ## できること
 
-    - **150+ languages** with a real lexer: strings, escapes, interpolation,
-      nested block comments, doc comments, regex literals, preprocessor lines.
-    - **Fifteen themes**, dark and light, switchable from Settings.
-    - **Find & Replace** with regex, case sensitivity and whole-word options.
-    - **Project search** across every file in the workspace.
-    - **Tabs**, a file browser, import/export through the Files app.
-    - A **code keyboard row** with the symbols a mobile keyboard buries.
+    - **150以上の言語**に対応したシンタックスハイライト
+    - **15種類のテーマ**（ダーク／ライト）
+    - **検索と置換**（大文字小文字・単語単位・正規表現）
+    - **すべてのファイルから検索**
+    - **タブ**とファイル一覧、「ファイル」App との読み込み・書き出し
+    - キーボードの上に出る**コード用の記号キー**
 
-    ## Getting around
+    ## 使い方
 
-    | Gesture | Action |
+    | 操作 | できること |
     | --- | --- |
-    | Tap the folder icon | Open the project browser |
-    | Swipe a file left | Rename, duplicate, delete |
-    | Tap the magnifier | Find & replace in the open file |
-    | Long-press a tab | Close others |
+    | 左上のフォルダ | ファイル一覧を開く |
+    | 上部の 📄+ | 新しいファイルを作る（種類を選ぶだけ） |
+    | ファイルを左スワイプ | 名前の変更・複製・削除 |
+    | 虫めがね | 開いているファイル内を検索 |
+    | タブを長押し | 他のタブを閉じる |
+    | 2本指でピンチ | 文字サイズを変える |
 
-    > Everything is stored in the app's Documents folder, which is visible from
-    > the Files app — so you can drop a whole project in over AirDrop or iCloud.
+    > 保存は自動です。入力をやめると数秒で書き込まれます。
+    > 迷ったら、メニュー（右上の … ）から「使い方」を開いてください。
 
     ```swift
-    print("Happy hacking")
+    print("よいコーディングを！")
     ```
+
+    ---
+
+    **English** — CodeForge is an offline code editor. Files live in the app's
+    Documents folder and are visible in the Files app, so you can drop a whole
+    project in over AirDrop or iCloud Drive. Change the interface language in
+    Settings ▸ Language.
     """
 
     static let swiftSample = """
