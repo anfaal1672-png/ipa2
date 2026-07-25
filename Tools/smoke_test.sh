@@ -48,9 +48,18 @@ run_once() {
   xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
   rm -f ~/Library/Logs/DiagnosticReports/CodeForge*.ips 2>/dev/null || true
 
-  local output
-  output=$(xcrun simctl launch --console-pty "$DEVICE_ID" "$BUNDLE_ID" "$@" 2>&1 &
-           sleep 8; echo)
+  # Plain `simctl launch` returns as soon as the app is spawned. Capturing a
+  # `--console-pty` launch instead would block until the app exits, which for a
+  # healthy app is never.
+  if ! xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" "$@" > launch-output.txt 2>&1; then
+    echo "!!! simctl launch failed ($label)" >&2
+    cat launch-output.txt >&2
+    return 1
+  fi
+  cat launch-output.txt
+
+  sleep 8
+
   local pid
   pid=$(xcrun simctl spawn "$DEVICE_ID" launchctl list 2>/dev/null \
         | awk -v id="UIKitApplication:$BUNDLE_ID" '$3 ~ id { print $1 }' | head -1)
@@ -62,8 +71,6 @@ run_once() {
   fi
 
   echo "!!! app is not running after launch ($label)" >&2
-  echo "--- launch output ---" >&2
-  echo "$output" >&2
   echo "--- crash reports ---" >&2
   for report in ~/Library/Logs/DiagnosticReports/CodeForge*.ips; do
     [ -e "$report" ] || continue
