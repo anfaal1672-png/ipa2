@@ -39,37 +39,37 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		2E3F49385C801EF8E4D4CBA2 /* CodeForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeForgeApp.swift; sourceTree = "<group>"; };
-		B098467754EC6F043BE8DE85 /* EditorSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSettings.swift; sourceTree = "<group>"; };
-		9C73E1B5DB3C04BDA8941876 /* CodeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeEditorView.swift; sourceTree = "<group>"; };
-		D9A845B123DFEF4BE91821EF /* CodeTextStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeTextStorage.swift; sourceTree = "<group>"; };
-		EB35C6889A3480CD2D5866B8 /* CodeTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeTextView.swift; sourceTree = "<group>"; };
-		112D31338DAA20877D060EC5 /* KeyboardToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardToolbar.swift; sourceTree = "<group>"; };
-		E9D7FFF7F9B3626493C2E8B9 /* SyntaxScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxScanner.swift; sourceTree = "<group>"; };
-		892407A7AB3984101B806CE9 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		71F3DBCC6B99C2F5502D301A /* LanguageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageDefinition.swift; sourceTree = "<group>"; };
-		7BC214051BF1B88793FC41C5 /* LanguageRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageRegistry.swift; sourceTree = "<group>"; };
-		ACD15021B4D3C6A11B14C621 /* Languages+CFamily.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Languages+CFamily.swift; sourceTree = "<group>"; };
-		AF7351721F124C6F249A8CC8 /* Languages+Data.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Languages+Data.swift; sourceTree = "<group>"; };
-		707268C610A0F286D0D52F3B /* Languages+JVM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Languages+JVM.swift; sourceTree = "<group>"; };
-		C39F1553C625F1EE38CBC7DE /* Languages+Misc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Languages+Misc.swift; sourceTree = "<group>"; };
-		AFF198389B2DEF0849BD5331 /* Languages+Scripting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Languages+Scripting.swift; sourceTree = "<group>"; };
-		74BDEE375D92871F8182FC8B /* Languages+Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Languages+Shell.swift; sourceTree = "<group>"; };
-		37CFDDF6DAACE00761062D4C /* Languages+Systems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Languages+Systems.swift; sourceTree = "<group>"; };
-		9E6CC0FBA9001F6584430BC6 /* Languages+Web.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Languages+Web.swift; sourceTree = "<group>"; };
-		2B78BF588682431EAFBABCC0 /* CodeDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeDocument.swift; sourceTree = "<group>"; };
-		C4FE4D740E35467482015F0F /* FileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileItem.swift; sourceTree = "<group>"; };
-		98A2772EDD41A9F20E6B8674 /* SampleFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleFiles.swift; sourceTree = "<group>"; };
-		BE60CA16319DC3CE25CC739F /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
-		5BB299F63A016C6E28F37295 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		7910446D7AFBA0A2653C10A3 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
-		58C096E5F0819E509135C065 /* FindBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindBarView.swift; sourceTree = "<group>"; };
-		481A0FE3ADA4E2BCF973C8C9 /* ProjectSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSearchView.swift; sourceTree = "<group>"; };
-		310DFF6FE17BF6FF33A2CBB9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		D3671BDE16458F3BE7B16035 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
-		9B45366916230120010F947D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		BA3557110BB9B51A546863F0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		F5BF48AA40CAD7891EB709FC /* CodeForge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodeForge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2E3F49385C801EF8E4D4CBA2 /* CodeForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeForgeApp.swift"; sourceTree = "<group>"; };
+		B098467754EC6F043BE8DE85 /* EditorSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorSettings.swift"; sourceTree = "<group>"; };
+		9C73E1B5DB3C04BDA8941876 /* CodeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeEditorView.swift"; sourceTree = "<group>"; };
+		D9A845B123DFEF4BE91821EF /* CodeTextStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeTextStorage.swift"; sourceTree = "<group>"; };
+		EB35C6889A3480CD2D5866B8 /* CodeTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeTextView.swift"; sourceTree = "<group>"; };
+		112D31338DAA20877D060EC5 /* KeyboardToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KeyboardToolbar.swift"; sourceTree = "<group>"; };
+		E9D7FFF7F9B3626493C2E8B9 /* SyntaxScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SyntaxScanner.swift"; sourceTree = "<group>"; };
+		892407A7AB3984101B806CE9 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Theme.swift"; sourceTree = "<group>"; };
+		71F3DBCC6B99C2F5502D301A /* LanguageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LanguageDefinition.swift"; sourceTree = "<group>"; };
+		7BC214051BF1B88793FC41C5 /* LanguageRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LanguageRegistry.swift"; sourceTree = "<group>"; };
+		ACD15021B4D3C6A11B14C621 /* Languages+CFamily.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+CFamily.swift"; sourceTree = "<group>"; };
+		AF7351721F124C6F249A8CC8 /* Languages+Data.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+Data.swift"; sourceTree = "<group>"; };
+		707268C610A0F286D0D52F3B /* Languages+JVM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+JVM.swift"; sourceTree = "<group>"; };
+		C39F1553C625F1EE38CBC7DE /* Languages+Misc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+Misc.swift"; sourceTree = "<group>"; };
+		AFF198389B2DEF0849BD5331 /* Languages+Scripting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+Scripting.swift"; sourceTree = "<group>"; };
+		74BDEE375D92871F8182FC8B /* Languages+Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+Shell.swift"; sourceTree = "<group>"; };
+		37CFDDF6DAACE00761062D4C /* Languages+Systems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+Systems.swift"; sourceTree = "<group>"; };
+		9E6CC0FBA9001F6584430BC6 /* Languages+Web.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Languages+Web.swift"; sourceTree = "<group>"; };
+		2B78BF588682431EAFBABCC0 /* CodeDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeDocument.swift"; sourceTree = "<group>"; };
+		C4FE4D740E35467482015F0F /* FileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileItem.swift"; sourceTree = "<group>"; };
+		98A2772EDD41A9F20E6B8674 /* SampleFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SampleFiles.swift"; sourceTree = "<group>"; };
+		BE60CA16319DC3CE25CC739F /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkspaceStore.swift"; sourceTree = "<group>"; };
+		5BB299F63A016C6E28F37295 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
+		7910446D7AFBA0A2653C10A3 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileBrowserView.swift"; sourceTree = "<group>"; };
+		58C096E5F0819E509135C065 /* FindBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FindBarView.swift"; sourceTree = "<group>"; };
+		481A0FE3ADA4E2BCF973C8C9 /* ProjectSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectSearchView.swift"; sourceTree = "<group>"; };
+		310DFF6FE17BF6FF33A2CBB9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
+		D3671BDE16458F3BE7B16035 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TabBarView.swift"; sourceTree = "<group>"; };
+		9B45366916230120010F947D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
+		BA3557110BB9B51A546863F0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		F5BF48AA40CAD7891EB709FC /* CodeForge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CodeForge.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -79,7 +79,7 @@
 				9B45366916230120010F947D /* child */,
 				BA3557110BB9B51A546863F0 /* child */,
 			);
-			path = Resources;
+			path = "Resources";
 			sourceTree = "<group>";
 		};
 		74826DE81EC4EBE2594196DC /* App */ = {
@@ -88,7 +88,7 @@
 				2E3F49385C801EF8E4D4CBA2 /* child */,
 				B098467754EC6F043BE8DE85 /* child */,
 			);
-			path = App;
+			path = "App";
 			sourceTree = "<group>";
 		};
 		97529E65E76C4C4EAE2CBD9E /* Editor */ = {
@@ -101,7 +101,7 @@
 				E9D7FFF7F9B3626493C2E8B9 /* child */,
 				892407A7AB3984101B806CE9 /* child */,
 			);
-			path = Editor;
+			path = "Editor";
 			sourceTree = "<group>";
 		};
 		B10D1A838EED90175F8BFD85 /* Languages */ = {
@@ -118,7 +118,7 @@
 				37CFDDF6DAACE00761062D4C /* child */,
 				9E6CC0FBA9001F6584430BC6 /* child */,
 			);
-			path = Languages;
+			path = "Languages";
 			sourceTree = "<group>";
 		};
 		A09DA044E562BC350CB7703F /* Models */ = {
@@ -128,7 +128,7 @@
 				C4FE4D740E35467482015F0F /* child */,
 				98A2772EDD41A9F20E6B8674 /* child */,
 			);
-			path = Models;
+			path = "Models";
 			sourceTree = "<group>";
 		};
 		E6C2BE80A4FB806DCF948B66 /* Services */ = {
@@ -136,7 +136,7 @@
 			children = (
 				BE60CA16319DC3CE25CC739F /* child */,
 			);
-			path = Services;
+			path = "Services";
 			sourceTree = "<group>";
 		};
 		B8E9F1B39A49E1D4812B0F27 /* UI */ = {
@@ -149,7 +149,7 @@
 				310DFF6FE17BF6FF33A2CBB9 /* child */,
 				D3671BDE16458F3BE7B16035 /* child */,
 			);
-			path = UI;
+			path = "UI";
 			sourceTree = "<group>";
 		};
 		28E87B881CBB22E75418AAA6 /* Sources */ = {
@@ -162,7 +162,7 @@
 				E6C2BE80A4FB806DCF948B66 /* child */,
 				B8E9F1B39A49E1D4812B0F27 /* child */,
 			);
-			path = Sources;
+			path = "Sources";
 			sourceTree = "<group>";
 		};
 		8592443AC5F88858345234EC /* CodeForge */ = {
@@ -171,7 +171,7 @@
 				BB23373D1A09585619630A05 /* child */,
 				28E87B881CBB22E75418AAA6 /* child */,
 			);
-			path = CodeForge;
+			path = "CodeForge";
 			sourceTree = "<group>";
 		};
 		2B731CEFC6751AAE0EC69B98 = {

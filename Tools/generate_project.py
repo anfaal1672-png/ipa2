@@ -62,7 +62,7 @@ def emit_groups(tree, name, path_component, lines, is_root=False):
         f"\t\t{group_uid} /* {name} */ = {{\n"
         f"\t\t\tisa = PBXGroup;\n"
         f"\t\t\tchildren = (\n{children}\n\t\t\t);\n"
-        f"\t\t\tpath = {name};\n"
+        f"\t\t\tpath = \"{name}\";\n"
         f"\t\t\tsourceTree = \"<group>\";\n"
         f"\t\t}};"
     )
@@ -120,12 +120,12 @@ def main():
             file_type = "text"
         out.append(
             f"\t\t{uid('file:' + path)} /* {name} */ = {{isa = PBXFileReference; "
-            f"lastKnownFileType = {file_type}; path = {name}; sourceTree = \"<group>\"; }};"
+            f"lastKnownFileType = {file_type}; path = \"{name}\"; sourceTree = \"<group>\"; }};"
         )
     out.append(
         f"\t\t{product_uid} /* {PROJECT_NAME}.app */ = {{isa = PBXFileReference; "
         f"explicitFileType = wrapper.application; includeInIndex = 0; "
-        f"path = {PROJECT_NAME}.app; sourceTree = BUILT_PRODUCTS_DIR; }};"
+        f"path = \"{PROJECT_NAME}.app\"; sourceTree = BUILT_PRODUCTS_DIR; }};"
     )
     out.append("/* End PBXFileReference section */")
 
