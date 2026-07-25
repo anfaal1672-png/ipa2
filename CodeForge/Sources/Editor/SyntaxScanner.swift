@@ -1,5 +1,12 @@
 import Foundation
 
+/// UTF-16 code unit for an ASCII character. `UInt16` has no `init(ascii:)`,
+/// and going through `UInt8` at every call site would drown the scanner.
+@inline(__always)
+func ascii(_ scalar: Unicode.Scalar) -> unichar {
+    unichar(UInt8(ascii: scalar))
+}
+
 /// A hand written, allocation-light lexer that works directly on UTF-16 code
 /// units so the token ranges can be handed straight to `NSTextStorage`.
 ///
@@ -87,7 +94,7 @@ struct SyntaxScanner {
             }
 
             // ---- numbers --------------------------------------------------
-            if isDigit(c) || (c == UInt16(ascii: ".") && i + 1 < end && isDigit(u[i + 1]) && !lastWasValue) {
+            if isDigit(c) || (c == ascii(".") && i + 1 < end && isDigit(u[i + 1]) && !lastWasValue) {
                 let j = consumeNumber(u, i, end, lang)
                 tokens.append(Token(type: .number, range: NSRange(location: i, length: j - i)))
                 i = j
@@ -105,11 +112,11 @@ struct SyntaxScanner {
                 if let type = lang.lookup(word) {
                     tokens.append(Token(type: type, range: range))
                     lastWasValue = (type == .constant || type == .type)
-                } else if lang.highlightProperties && lastMeaningful == UInt16(ascii: ".") {
-                    tokens.append(Token(type: nextNonSpace(u, j, end) == UInt16(ascii: "(") && lang.highlightCalls
+                } else if lang.highlightProperties && lastMeaningful == ascii(".") {
+                    tokens.append(Token(type: nextNonSpace(u, j, end) == ascii("(") && lang.highlightCalls
                                         ? .function : .property, range: range))
                     lastWasValue = true
-                } else if lang.highlightCalls && nextNonSpace(u, j, end) == UInt16(ascii: "(") {
+                } else if lang.highlightCalls && nextNonSpace(u, j, end) == ascii("(") {
                     tokens.append(Token(type: .function, range: range))
                     lastWasValue = false
                 } else if isTypeShaped(word) {
@@ -124,7 +131,7 @@ struct SyntaxScanner {
             }
 
             // ---- regex literals (JS-family) -------------------------------
-            if c == UInt16(ascii: "/") && lang.rules.isEmpty == false && supportsRegexLiteral(lang) && !lastWasValue {
+            if c == ascii("/"), supportsRegexLiteral(lang), !lastWasValue {
                 if let j = consumeRegexLiteral(u, i, end) {
                     tokens.append(Token(type: .regex, range: NSRange(location: i, length: j - i)))
                     i = j
@@ -137,7 +144,7 @@ struct SyntaxScanner {
             if lang.punctuation.contains(Character(UnicodeScalar(c) ?? " ")) {
                 tokens.append(Token(type: .punctuation, range: NSRange(location: i, length: 1)))
                 lastMeaningful = c
-                lastWasValue = (c == UInt16(ascii: ")") || c == UInt16(ascii: "]"))
+                lastWasValue = (c == ascii(")") || c == ascii("]"))
                 i += 1
                 continue
             }
@@ -171,10 +178,10 @@ struct SyntaxScanner {
         while i < end {
             let c = u[i]
             if c == 0x0A { return nil }
-            if c == UInt16(ascii: "\\") { i += 2; continue }
-            if c == UInt16(ascii: "[") { inClass = true }
-            else if c == UInt16(ascii: "]") { inClass = false }
-            else if c == UInt16(ascii: "/") && !inClass {
+            if c == ascii("\\") { i += 2; continue }
+            if c == ascii("[") { inClass = true }
+            else if c == ascii("]") { inClass = false }
+            else if c == ascii("/") && !inClass {
                 i += 1
                 while i < end && isLetter(u[i]) { i += 1 }
                 return i
@@ -287,11 +294,11 @@ struct SyntaxScanner {
     private func consumeNumber(_ u: [unichar], _ start: Int, _ end: Int,
                                _ lang: LanguageDefinition) -> Int {
         var i = start
-        if u[i] == UInt16(ascii: "0"), i + 1 < end {
+        if u[i] == ascii("0"), i + 1 < end {
             let n = u[i + 1] | 0x20
-            if n == UInt16(ascii: "x") || n == UInt16(ascii: "b") || n == UInt16(ascii: "o") {
+            if n == ascii("x") || n == ascii("b") || n == ascii("o") {
                 i += 2
-                while i < end && (isHexDigit(u[i]) || (lang.numbersAllowUnderscore && u[i] == UInt16(ascii: "_"))) { i += 1 }
+                while i < end && (isHexDigit(u[i]) || (lang.numbersAllowUnderscore && u[i] == ascii("_"))) { i += 1 }
                 while i < end && isLetter(u[i]) { i += 1 }   // suffixes: u, L, ul …
                 return i
             }
@@ -301,11 +308,11 @@ struct SyntaxScanner {
         while i < end {
             let c = u[i]
             if isDigit(c) { i += 1; continue }
-            if lang.numbersAllowUnderscore && c == UInt16(ascii: "_") { i += 1; continue }
-            if c == UInt16(ascii: ".") && !seenDot && !seenExp
+            if lang.numbersAllowUnderscore && c == ascii("_") { i += 1; continue }
+            if c == ascii(".") && !seenDot && !seenExp
                 && i + 1 < end && isDigit(u[i + 1]) { seenDot = true; i += 1; continue }
-            if (c | 0x20) == UInt16(ascii: "e") && !seenExp && i + 1 < end
-                && (isDigit(u[i + 1]) || ((u[i + 1] == UInt16(ascii: "+") || u[i + 1] == UInt16(ascii: "-"))
+            if (c | 0x20) == ascii("e") && !seenExp && i + 1 < end
+                && (isDigit(u[i + 1]) || ((u[i + 1] == ascii("+") || u[i + 1] == ascii("-"))
                                           && i + 2 < end && isDigit(u[i + 2]))) {
                 seenExp = true
                 i += 2
@@ -314,7 +321,7 @@ struct SyntaxScanner {
             break
         }
         // numeric suffix (f, L, ull, px …)
-        while i < end && (isLetter(u[i]) || u[i] == UInt16(ascii: "%")) { i += 1 }
+        while i < end && (isLetter(u[i]) || u[i] == ascii("%")) { i += 1 }
         return i
     }
 
@@ -332,14 +339,14 @@ struct SyntaxScanner {
                 i = j
                 continue
             }
-            if u[i] == UInt16(ascii: "<") {
-                let isClose = i + 1 < end && u[i + 1] == UInt16(ascii: "/")
-                let isDecl = i + 1 < end && (u[i + 1] == UInt16(ascii: "!") || u[i + 1] == UInt16(ascii: "?"))
+            if u[i] == ascii("<") {
+                let isClose = i + 1 < end && u[i + 1] == ascii("/")
+                let isDecl = i + 1 < end && (u[i + 1] == ascii("!") || u[i + 1] == ascii("?"))
                 var j = i + 1
                 if isClose || isDecl { j += 1 }
                 let nameStart = j
-                while j < end && (isLetter(u[j]) || isDigit(u[j]) || u[j] == UInt16(ascii: "-")
-                                  || u[j] == UInt16(ascii: ":") || u[j] == UInt16(ascii: "_")) { j += 1 }
+                while j < end && (isLetter(u[j]) || isDigit(u[j]) || u[j] == ascii("-")
+                                  || u[j] == ascii(":") || u[j] == ascii("_")) { j += 1 }
                 let name = String(utf16CodeUnits: Array(u[nameStart..<max(nameStart, j)]),
                                   count: max(0, j - nameStart)).lowercased()
                 tokens.append(Token(type: .punctuation, range: NSRange(location: i, length: nameStart - i)))
@@ -347,9 +354,9 @@ struct SyntaxScanner {
                     tokens.append(Token(type: .tag, range: NSRange(location: nameStart, length: j - nameStart)))
                 }
                 // attributes
-                while j < end && u[j] != UInt16(ascii: ">") {
+                while j < end && u[j] != ascii(">") {
                     if isSpace(u[j]) { j += 1; continue }
-                    if u[j] == UInt16(ascii: "\"") || u[j] == UInt16(ascii: "'") {
+                    if u[j] == ascii("\"") || u[j] == ascii("'") {
                         let quote = u[j]
                         var k = j + 1
                         while k < end && u[k] != quote { k += 1 }
@@ -358,11 +365,11 @@ struct SyntaxScanner {
                         j = k
                         continue
                     }
-                    if isLetter(u[j]) || u[j] == UInt16(ascii: "_") || u[j] == UInt16(ascii: ":")
-                        || u[j] == UInt16(ascii: "@") || u[j] == UInt16(ascii: "#") || u[j] == UInt16(ascii: "[") {
+                    if isLetter(u[j]) || u[j] == ascii("_") || u[j] == ascii(":")
+                        || u[j] == ascii("@") || u[j] == ascii("#") || u[j] == ascii("[") {
                         var k = j + 1
-                        while k < end && !isSpace(u[k]) && u[k] != UInt16(ascii: "=")
-                            && u[k] != UInt16(ascii: ">") && u[k] != UInt16(ascii: "\"") { k += 1 }
+                        while k < end && !isSpace(u[k]) && u[k] != ascii("=")
+                            && u[k] != ascii(">") && u[k] != ascii("\"") { k += 1 }
                         tokens.append(Token(type: .attribute, range: NSRange(location: j, length: k - j)))
                         j = k
                         continue
@@ -392,10 +399,10 @@ struct SyntaxScanner {
                 }
                 continue
             }
-            if u[i] == UInt16(ascii: "&") {
+            if u[i] == ascii("&") {
                 var j = i + 1
-                while j < end && j - i < 12 && u[j] != UInt16(ascii: ";") && !isSpace(u[j]) { j += 1 }
-                if j < end && u[j] == UInt16(ascii: ";") {
+                while j < end && j - i < 12 && u[j] != ascii(";") && !isSpace(u[j]) { j += 1 }
+                if j < end && u[j] == ascii(";") {
                     tokens.append(Token(type: .escape, range: NSRange(location: i, length: j - i + 1)))
                     i = j + 1
                     continue
@@ -428,53 +435,53 @@ struct SyntaxScanner {
                 i = j
                 continue
             }
-            if c == UInt16(ascii: "\"") || c == UInt16(ascii: "'") {
+            if c == ascii("\"") || c == ascii("'") {
                 i = consumeString(u, i, end, StringRule(open: String(UnicodeScalar(UInt8(c)))), &tokens)
                 continue
             }
-            if c == UInt16(ascii: "@") {
+            if c == ascii("@") {
                 var j = i + 1
-                while j < end && (isLetter(u[j]) || u[j] == UInt16(ascii: "-")) { j += 1 }
+                while j < end && (isLetter(u[j]) || u[j] == ascii("-")) { j += 1 }
                 tokens.append(Token(type: .keyword, range: NSRange(location: i, length: j - i)))
                 i = j
                 continue
             }
-            if c == UInt16(ascii: "$") || c == UInt16(ascii: "-") && matches(u, i, end, "--") {
+            if c == ascii("$") || c == ascii("-") && matches(u, i, end, "--") {
                 var j = i + 1
-                while j < end && (isLetter(u[j]) || isDigit(u[j]) || u[j] == UInt16(ascii: "-") || u[j] == UInt16(ascii: "_")) { j += 1 }
+                while j < end && (isLetter(u[j]) || isDigit(u[j]) || u[j] == ascii("-") || u[j] == ascii("_")) { j += 1 }
                 tokens.append(Token(type: .variable, range: NSRange(location: i, length: j - i)))
                 i = j
                 continue
             }
-            if c == UInt16(ascii: "#") && i + 1 < end && isHexDigit(u[i + 1]) && inBlock {
+            if c == ascii("#") && i + 1 < end && isHexDigit(u[i + 1]) && inBlock {
                 var j = i + 1
                 while j < end && isHexDigit(u[j]) { j += 1 }
                 tokens.append(Token(type: .number, range: NSRange(location: i, length: j - i)))
                 i = j
                 continue
             }
-            if isDigit(c) || (c == UInt16(ascii: ".") && i + 1 < end && isDigit(u[i + 1])) {
+            if isDigit(c) || (c == ascii(".") && i + 1 < end && isDigit(u[i + 1])) {
                 let j = consumeNumber(u, i, end, lang)
                 tokens.append(Token(type: .number, range: NSRange(location: i, length: j - i)))
                 i = j
                 continue
             }
-            if c == UInt16(ascii: "{") { inBlock = true; afterColon = false
+            if c == ascii("{") { inBlock = true; afterColon = false
                 tokens.append(Token(type: .punctuation, range: NSRange(location: i, length: 1))); i += 1; continue }
-            if c == UInt16(ascii: "}") { inBlock = false; afterColon = false
+            if c == ascii("}") { inBlock = false; afterColon = false
                 tokens.append(Token(type: .punctuation, range: NSRange(location: i, length: 1))); i += 1; continue }
-            if c == UInt16(ascii: ":") { afterColon = true
+            if c == ascii(":") { afterColon = true
                 tokens.append(Token(type: .punctuation, range: NSRange(location: i, length: 1))); i += 1; continue }
-            if c == UInt16(ascii: ";") { afterColon = false
+            if c == ascii(";") { afterColon = false
                 tokens.append(Token(type: .punctuation, range: NSRange(location: i, length: 1))); i += 1; continue }
-            if isLetter(c) || c == UInt16(ascii: "_") || c == UInt16(ascii: "-") || c == UInt16(ascii: ".")
-                || c == UInt16(ascii: "#") || c == UInt16(ascii: "&") {
+            if isLetter(c) || c == ascii("_") || c == ascii("-") || c == ascii(".")
+                || c == ascii("#") || c == ascii("&") {
                 var j = i + 1
-                while j < end && (isLetter(u[j]) || isDigit(u[j]) || u[j] == UInt16(ascii: "-")
-                                  || u[j] == UInt16(ascii: "_")) { j += 1 }
+                while j < end && (isLetter(u[j]) || isDigit(u[j]) || u[j] == ascii("-")
+                                  || u[j] == ascii("_")) { j += 1 }
                 let type: TokenType
                 if inBlock && !afterColon { type = .property }
-                else if inBlock { type = nextNonSpace(u, j, end) == UInt16(ascii: "(") ? .function : .constant }
+                else if inBlock { type = nextNonSpace(u, j, end) == ascii("(") ? .function : .constant }
                 else { type = .tag }
                 tokens.append(Token(type: type, range: NSRange(location: i, length: j - i)))
                 i = j
@@ -497,7 +504,7 @@ struct SyntaxScanner {
             let line = NSRange(location: lineStart, length: lineEnd - lineStart)
 
             var p = lineStart
-            while p < lineEnd && (u[p] == UInt16(ascii: " ") || u[p] == UInt16(ascii: "\t")) { p += 1 }
+            while p < lineEnd && (u[p] == ascii(" ") || u[p] == ascii("\t")) { p += 1 }
 
             if matches(u, p, lineEnd, "```") || matches(u, p, lineEnd, "~~~") {
                 let fence = String(utf16CodeUnits: [u[p], u[p], u[p]], count: 3)
@@ -537,12 +544,12 @@ struct SyntaxScanner {
                 continue
             }
 
-            if p < lineEnd && u[p] == UInt16(ascii: "#") {
+            if p < lineEnd && u[p] == ascii("#") {
                 tokens.append(Token(type: .heading, range: line))
-            } else if p < lineEnd && u[p] == UInt16(ascii: ">") {
+            } else if p < lineEnd && u[p] == ascii(">") {
                 tokens.append(Token(type: .comment, range: line))
-            } else if p + 1 < lineEnd && (u[p] == UInt16(ascii: "-") || u[p] == UInt16(ascii: "*")
-                                          || u[p] == UInt16(ascii: "+")) && isSpace(u[p + 1]) {
+            } else if p + 1 < lineEnd && (u[p] == ascii("-") || u[p] == ascii("*")
+                                          || u[p] == ascii("+")) && isSpace(u[p + 1]) {
                 tokens.append(Token(type: .keyword, range: NSRange(location: p, length: 1)))
                 scanMarkdownInline(u, p + 1, lineEnd, &tokens)
             } else {
@@ -556,9 +563,9 @@ struct SyntaxScanner {
         var i = start
         while i < end {
             let c = u[i]
-            if c == UInt16(ascii: "`") {
+            if c == ascii("`") {
                 var j = i + 1
-                while j < end && u[j] != UInt16(ascii: "`") { j += 1 }
+                while j < end && u[j] != ascii("`") { j += 1 }
                 j = min(end, j + 1)
                 tokens.append(Token(type: .string, range: NSRange(location: i, length: j - i)))
                 i = j
@@ -573,7 +580,7 @@ struct SyntaxScanner {
                 i = j
                 continue
             }
-            if c == UInt16(ascii: "*") || c == UInt16(ascii: "_") {
+            if c == ascii("*") || c == ascii("_") {
                 var j = i + 1
                 while j < end && u[j] != c { j += 1 }
                 if j < end {
@@ -582,12 +589,12 @@ struct SyntaxScanner {
                     continue
                 }
             }
-            if c == UInt16(ascii: "[") {
+            if c == ascii("[") {
                 var j = i + 1
-                while j < end && u[j] != UInt16(ascii: "]") { j += 1 }
-                if j + 1 < end && u[j + 1] == UInt16(ascii: "(") {
+                while j < end && u[j] != ascii("]") { j += 1 }
+                if j + 1 < end && u[j + 1] == ascii("(") {
                     var k = j + 2
-                    while k < end && u[k] != UInt16(ascii: ")") { k += 1 }
+                    while k < end && u[k] != ascii(")") { k += 1 }
                     k = min(end, k + 1)
                     tokens.append(Token(type: .link, range: NSRange(location: i, length: j - i + 1)))
                     tokens.append(Token(type: .string, range: NSRange(location: j + 1, length: k - j - 1)))
@@ -609,13 +616,13 @@ struct SyntaxScanner {
             while lineEnd < end && u[lineEnd] != 0x0A { lineEnd += 1 }
             var p = i
             while p < lineEnd && isSpace(u[p]) { p += 1 }
-            if p < lineEnd && (u[p] == UInt16(ascii: "#") || u[p] == UInt16(ascii: ";")) {
+            if p < lineEnd && (u[p] == ascii("#") || u[p] == ascii(";")) {
                 tokens.append(Token(type: .comment, range: NSRange(location: p, length: lineEnd - p)))
-            } else if p < lineEnd && u[p] == UInt16(ascii: "[") {
+            } else if p < lineEnd && u[p] == ascii("[") {
                 tokens.append(Token(type: .heading, range: NSRange(location: p, length: lineEnd - p)))
             } else {
                 var eq = p
-                while eq < lineEnd && u[eq] != UInt16(ascii: "=") && u[eq] != UInt16(ascii: ":") { eq += 1 }
+                while eq < lineEnd && u[eq] != ascii("=") && u[eq] != ascii(":") { eq += 1 }
                 if eq < lineEnd {
                     tokens.append(Token(type: .property, range: NSRange(location: p, length: eq - p)))
                     tokens.append(Token(type: .operator, range: NSRange(location: eq, length: 1)))
@@ -623,7 +630,7 @@ struct SyntaxScanner {
                     while v < lineEnd && isSpace(u[v]) { v += 1 }
                     if v < lineEnd {
                         let vt: TokenType = isDigit(u[v]) ? .number
-                            : (u[v] == UInt16(ascii: "\"") || u[v] == UInt16(ascii: "'")) ? .string : .constant
+                            : (u[v] == ascii("\"") || u[v] == ascii("'")) ? .string : .constant
                         tokens.append(Token(type: vt, range: NSRange(location: v, length: lineEnd - v)))
                     }
                 }
@@ -642,13 +649,13 @@ struct SyntaxScanner {
             let range = NSRange(location: i, length: lineEnd - i)
             if range.length > 0 {
                 switch u[i] {
-                case UInt16(ascii: "+"):
+                case ascii("+"):
                     tokens.append(Token(type: matches(u, i, end, "+++") ? .heading : .inserted, range: range))
-                case UInt16(ascii: "-"):
+                case ascii("-"):
                     tokens.append(Token(type: matches(u, i, end, "---") ? .heading : .deleted, range: range))
-                case UInt16(ascii: "@"):
+                case ascii("@"):
                     tokens.append(Token(type: .keyword, range: range))
-                case UInt16(ascii: "d"), UInt16(ascii: "i"), UInt16(ascii: "n"):
+                case ascii("d"), ascii("i"), ascii("n"):
                     tokens.append(Token(type: .heading, range: range))
                 default:
                     break
@@ -691,7 +698,7 @@ struct SyntaxScanner {
 
     private func nextNonSpace(_ u: [unichar], _ i: Int, _ end: Int) -> unichar {
         var j = i
-        while j < end && (u[j] == UInt16(ascii: " ") || u[j] == UInt16(ascii: "\t")) { j += 1 }
+        while j < end && (u[j] == ascii(" ") || u[j] == ascii("\t")) { j += 1 }
         return j < end ? u[j] : 0
     }
 
@@ -700,10 +707,10 @@ struct SyntaxScanner {
     }
     private func isDigit(_ c: unichar) -> Bool { c >= 0x30 && c <= 0x39 }
     private func isHexDigit(_ c: unichar) -> Bool {
-        isDigit(c) || ((c | 0x20) >= UInt16(ascii: "a") && (c | 0x20) <= UInt16(ascii: "f"))
+        isDigit(c) || ((c | 0x20) >= ascii("a") && (c | 0x20) <= ascii("f"))
     }
     private func isLetter(_ c: unichar) -> Bool {
-        (c | 0x20) >= UInt16(ascii: "a") && (c | 0x20) <= UInt16(ascii: "z")
+        (c | 0x20) >= ascii("a") && (c | 0x20) <= ascii("z")
     }
     private func isIdentifierStart(_ c: unichar, _ lang: LanguageDefinition) -> Bool {
         if isLetter(c) || c >= 0x80 { return true }

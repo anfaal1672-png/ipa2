@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Horizontal strip of open buffers.
 struct TabBarView: View {

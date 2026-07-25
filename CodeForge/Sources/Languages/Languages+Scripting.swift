@@ -102,7 +102,7 @@ extension Languages {
             blockComments: []))
 
         // ---- AppleScript ---------------------------------------------------------------
-        var applescript = LanguageDefinition.cLike(
+        let applescript = LanguageDefinition.cLike(
             id: "applescript", name: "AppleScript",
             extensions: ["applescript", "scpt"],
             keywords: "tell end set to of in on run script property global local return copy make new delete duplicate exists count get activate display considering ignoring with without using terms from application",

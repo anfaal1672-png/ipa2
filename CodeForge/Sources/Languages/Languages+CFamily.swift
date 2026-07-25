@@ -148,7 +148,7 @@ extension Languages {
         result.append(d)
 
         // ---- Vala -------------------------------------------------------------
-        var vala = LanguageDefinition.cLike(
+        let vala = LanguageDefinition.cLike(
             id: "vala", name: "Vala",
             extensions: ["vala", "vapi"],
             keywords: "using namespace class struct interface enum delegate signal construct static const abstract virtual override public private protected internal weak unowned owned out ref var new this base get set value async yield lock",

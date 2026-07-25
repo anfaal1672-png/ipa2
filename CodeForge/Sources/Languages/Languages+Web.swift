@@ -53,7 +53,7 @@ extension Languages {
         tsx.rules = [RegexRule("</?[A-Z][A-Za-z0-9_.]*", .tag)]
         result.append(tsx)
 
-        var coffee = LanguageDefinition.cLike(
+        let coffee = LanguageDefinition.cLike(
             id: "coffeescript", name: "CoffeeScript",
             extensions: ["coffee"],
             keywords: "class extends new delete typeof instanceof in of this super yield await do then unless until loop by own export import from as",
@@ -170,7 +170,7 @@ extension Languages {
         result.append(graphql)
 
         // ---- WebAssembly text ---------------------------------------------------------
-        var wat = LanguageDefinition.cLike(
+        let wat = LanguageDefinition.cLike(
             id: "wasm", name: "WebAssembly Text",
             extensions: ["wat", "wast"],
             keywords: "module func param result local global table memory data elem export import type start block loop if else end br br_if br_table call call_indirect return drop select mut offset align",

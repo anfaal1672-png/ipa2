@@ -54,7 +54,7 @@ extension Languages {
         result.append(yaml)
 
         // ---- TOML ------------------------------------------------------------------
-        var toml = LanguageDefinition.cLike(
+        let toml = LanguageDefinition.cLike(
             id: "toml", name: "TOML",
             extensions: ["toml"],
             filenames: ["Cargo.toml", "pyproject.toml", "Pipfile", "poetry.lock", "Cargo.lock"],
@@ -119,7 +119,7 @@ extension Languages {
         md.keyboardExtras = ["#", "*", "-", "`", "[", "]", "(", ")", ">"]
         result.append(md)
 
-        var rst = LanguageDefinition.cLike(
+        let rst = LanguageDefinition.cLike(
             id: "rst", name: "reStructuredText",
             extensions: ["rst", "rest"],
             keywords: "", controlKeywords: "", types: "", constants: "",
@@ -151,7 +151,7 @@ extension Languages {
         result.append(diff)
 
         // ---- CSV / TSV -----------------------------------------------------------------------
-        var csv = LanguageDefinition.cLike(
+        let csv = LanguageDefinition.cLike(
             id: "csv", name: "CSV / TSV",
             extensions: ["csv", "tsv", "psv"],
             keywords: "", controlKeywords: "", types: "", constants: "",
@@ -162,7 +162,7 @@ extension Languages {
         result.append(csv)
 
         // ---- Infrastructure as code ---------------------------------------------------------------
-        var hcl = LanguageDefinition.cLike(
+        let hcl = LanguageDefinition.cLike(
             id: "terraform", name: "Terraform / HCL",
             extensions: ["tf", "tfvars", "hcl", "nomad", "workflow"],
             keywords: "resource data variable output provider module locals terraform backend provisioner connection dynamic lifecycle depends_on count for_each each var local self required_providers source version",
@@ -176,7 +176,7 @@ extension Languages {
                       StringRule(open: "\"", interpolationOpen: "${", interpolationClose: "}")])
         result.append(hcl)
 
-        var dockerfile = LanguageDefinition.cLike(
+        let dockerfile = LanguageDefinition.cLike(
             id: "dockerfile", name: "Dockerfile",
             extensions: ["dockerfile", "containerfile"],
             filenames: ["Dockerfile", "Containerfile", "Dockerfile.dev", "Dockerfile.prod"],
@@ -205,7 +205,7 @@ extension Languages {
         makefile.indentUnit = "\t"
         result.append(makefile)
 
-        var cmake = LanguageDefinition.cLike(
+        let cmake = LanguageDefinition.cLike(
             id: "cmake", name: "CMake",
             extensions: ["cmake"],
             filenames: ["CMakeLists.txt"],

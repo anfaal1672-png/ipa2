@@ -165,7 +165,7 @@ extension Languages {
         haskell.operatorCharacters = Set("+-*/=<>$!&|.:#@%^?~\\")
         result.append(haskell)
 
-        var ocaml = LanguageDefinition.cLike(
+        let ocaml = LanguageDefinition.cLike(
             id: "ocaml", name: "OCaml",
             extensions: ["ml", "mli", "mll", "mly"],
             keywords: "let rec and in fun function module struct sig end open include type val mutable ref as of begin new object method inherit private virtual external lazy assert",

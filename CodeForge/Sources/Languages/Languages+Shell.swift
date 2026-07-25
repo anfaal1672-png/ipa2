@@ -59,7 +59,7 @@ extension Languages {
         result.append(ps)
 
         // ---- Windows batch --------------------------------------------------------------
-        var batch = LanguageDefinition.cLike(
+        let batch = LanguageDefinition.cLike(
             id: "batch", name: "Batch / CMD",
             extensions: ["bat", "cmd"],
             keywords: "set setlocal endlocal call start exit shift pushd popd echo",
@@ -87,7 +87,7 @@ extension Languages {
             blockComments: []))
 
         // ---- Nginx / Apache / server config ------------------------------------------------
-        var nginx = LanguageDefinition.cLike(
+        let nginx = LanguageDefinition.cLike(
             id: "nginx", name: "Nginx Config",
             extensions: ["nginx"],
             filenames: ["nginx.conf"],
@@ -157,7 +157,7 @@ extension Languages {
     static var scientific: [LanguageDefinition] {
         var result: [LanguageDefinition] = []
 
-        var r = LanguageDefinition.cLike(
+        let r = LanguageDefinition.cLike(
             id: "r", name: "R",
             extensions: ["r", "rmd", "rdata", "rds", "rprofile"],
             filenames: [".Rprofile", "DESCRIPTION", "NAMESPACE"],
@@ -203,7 +203,7 @@ extension Languages {
         matlab.strings = [StringRule(open: "\""), StringRule(open: "'", escape: nil)]
         result.append(matlab)
 
-        var fortran = LanguageDefinition.cLike(
+        let fortran = LanguageDefinition.cLike(
             id: "fortran", name: "Fortran",
             extensions: ["f", "for", "f77", "f90", "f95", "f03", "f08", "ftn"],
             keywords: "program module submodule subroutine function end contains use implicit none intent in out inout parameter dimension allocatable pointer target save external internal interface type class abstract extends procedure public private result recursive pure elemental call allocate deallocate nullify common equivalence data block",

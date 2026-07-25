@@ -42,7 +42,7 @@ struct SettingsView: View {
                         Text("Preview")
                         Spacer()
                         Text("let x = 42")
-                            .font(Font(settings.font()))
+                            .font(.system(size: CGFloat(settings.fontSize), design: .monospaced))
                             .foregroundColor(.secondary)
                     }
                 }
