@@ -1,0 +1,83 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: [claude/iphone-code-editor-app-idhjgh]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish the IPA as a GitHub release"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          ls /Applications | grep -i xcode || true
+          sudo xcode-select -p
+          xcodebuild -version
+          swift --version
+
+      - name: Regenerate Xcode project
+        run: python3 Tools/generate_project.py
+
+      - name: Build (Release, iphoneos, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project CodeForge.xcodeproj \
+            -scheme CodeForge \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      - name: Package Payload/CodeForge.app into an IPA
+        run: |
+          APP="build/Build/Products/Release-iphoneos/CodeForge.app"
+          test -d "$APP" || { echo "app bundle missing"; exit 1; }
+          rm -rf Payload CodeForge-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          # strip anything code-signing related so the payload is plainly unsigned
+          rm -rf Payload/CodeForge.app/_CodeSignature
+          zip -qry CodeForge-unsigned.ipa Payload
+          ls -lh CodeForge-unsigned.ipa
+          unzip -l CodeForge-unsigned.ipa | head -20
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodeForge-unsigned-ipa
+          path: CodeForge-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Publish release
+        if: github.event_name == 'push' || inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ipa-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" CodeForge-unsigned.ipa \
+            --title "CodeForge $TAG (unsigned)" \
+            --notes "Unsigned iOS build of CodeForge produced by GitHub Actions from ${GITHUB_SHA}.
+
+          Install with a sideloading tool that signs it for you (AltStore, Sideloadly, TrollStore, or a paid/free Apple Developer account via Xcode). The IPA contains no code signature by design." \
+            --target "$GITHUB_SHA" || \
+          gh release upload "$TAG" CodeForge-unsigned.ipa --clobber
