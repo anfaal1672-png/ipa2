@@ -196,7 +196,7 @@ struct ContentView: View {
             } label: {
                 VStack(spacing: 2) {
                     Image(systemName: "ellipsis.circle").font(.system(size: 18, weight: .medium))
-                    Text(L("Settings")).font(.system(size: 9))
+                    Text(L("Menu")).font(.system(size: 9))
                 }
                 .frame(minWidth: 46)
             }

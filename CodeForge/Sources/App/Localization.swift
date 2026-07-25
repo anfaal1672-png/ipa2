@@ -68,6 +68,7 @@ final class Localization {
         "Saved": "保存済み",
         "Unsaved changes": "未保存の変更",
         "Settings": "設定",
+        "Menu": "メニュー",
         "Help": "使い方",
         "Share file": "ファイルを共有",
         "Done": "完了",
