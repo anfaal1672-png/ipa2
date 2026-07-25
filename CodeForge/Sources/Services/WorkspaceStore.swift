@@ -2,7 +2,10 @@ import Foundation
 import SwiftUI
 
 /// Owns the project tree, the open tabs and all file-system mutations.
-@MainActor
+///
+/// Deliberately not actor-isolated: every caller is a SwiftUI view body or a
+/// UIKit delegate callback, both of which already run on the main thread, and
+/// isolation would only force `await` into computed view properties.
 final class WorkspaceStore: ObservableObject {
 
     @Published private(set) var root: FileItem
