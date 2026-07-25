@@ -31,6 +31,24 @@ jobs:
       - name: Regenerate Xcode project
         run: python3 Tools/generate_project.py
 
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project CodeForge.xcodeproj \
+            -scheme CodeForge \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build-sim \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Launch smoke test (default and Japanese)
+        run: |
+          chmod +x Tools/smoke_test.sh
+          Tools/smoke_test.sh build-sim/Build/Products/Debug-iphonesimulator/CodeForge.app
+
       - name: Build (Release, iphoneos, unsigned)
         run: |
           set -o pipefail
