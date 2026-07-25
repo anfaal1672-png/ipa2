@@ -23,6 +23,94 @@ RESOURCE_FILES = [f"{PROJECT_NAME}/Resources/Assets.xcassets"]
 INFO_PLIST = f"{PROJECT_NAME}/Resources/Info.plist"
 
 
+def validate(text: str) -> None:
+    """Parses the generated old-style plist so a malformed value fails here
+    rather than three minutes into a CI build."""
+    i, n = 0, len(text)
+
+    def skip():
+        nonlocal i
+        while i < n:
+            if text[i] in " \t\r\n":
+                i += 1
+            elif text.startswith("/*", i):
+                end = text.find("*/", i + 2)
+                if end < 0:
+                    raise SystemExit("unterminated comment")
+                i = end + 2
+            elif text.startswith("//", i):
+                end = text.find("\n", i)
+                i = n if end < 0 else end + 1
+            else:
+                return
+
+    def fail(message):
+        line = text.count("\n", 0, i) + 1
+        raise SystemExit(f"pbxproj invalid at line {line}: {message}")
+
+    def parse_value():
+        nonlocal i
+        skip()
+        if i >= n:
+            fail("unexpected end of file")
+        c = text[i]
+        if c == "{":
+            i += 1
+            while True:
+                skip()
+                if i < n and text[i] == "}":
+                    i += 1
+                    return
+                parse_value()          # key
+                skip()
+                if i >= n or text[i] != "=":
+                    fail("expected '=' after key")
+                i += 1
+                parse_value()          # value
+                skip()
+                if i >= n or text[i] != ";":
+                    fail("expected ';' after value")
+                i += 1
+        if c == "(":
+            i += 1
+            while True:
+                skip()
+                if i < n and text[i] == ")":
+                    i += 1
+                    return
+                parse_value()
+                skip()
+                if i < n and text[i] == ",":
+                    i += 1
+                elif i < n and text[i] == ")":
+                    i += 1
+                    return
+                else:
+                    fail("expected ',' or ')' in array")
+        if c == '"':
+            i += 1
+            while i < n:
+                if text[i] == "\\":
+                    i += 2
+                    continue
+                if text[i] == '"':
+                    i += 1
+                    return
+                i += 1
+            fail("unterminated string")
+        start = i
+        while i < n and (text[i].isalnum() or text[i] in "_.$/@-+"):
+            i += 1
+        if i == start:
+            fail(f"unexpected character {text[i]!r}")
+        return
+
+    parse_value()
+    skip()
+    if i != n:
+        fail("trailing content after root object")
+
+
 def uid(key: str) -> str:
     return hashlib.md5(key.encode()).hexdigest()[:24].upper()
 
@@ -267,7 +355,7 @@ def main():
         "DEBUG_INFORMATION_FORMAT": "dwarf",
         "ENABLE_TESTABILITY": "YES",
         "GCC_OPTIMIZATION_LEVEL": "0",
-        "GCC_PREPROCESSOR_DEFINITIONS": "\"DEBUG=1\" \"$(inherited)\"",
+        "GCC_PREPROCESSOR_DEFINITIONS": "(\n\t\t\t\t\t\"DEBUG=1\",\n\t\t\t\t\t\"$(inherited)\",\n\t\t\t\t)",
         "MTL_ENABLE_DEBUG_INFO": "INCLUDE_SOURCE",
         "ONLY_ACTIVE_ARCH": "YES",
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "\"DEBUG $(inherited)\"",
@@ -349,9 +437,12 @@ def main():
     out.append(f"\trootObject = {project_uid} /* Project object */;")
     out.append("}")
 
+    contents = "\n".join(out) + "\n"
+    validate(contents)
+
     project_dir = ROOT / f"{PROJECT_NAME}.xcodeproj"
     project_dir.mkdir(exist_ok=True)
-    (project_dir / "project.pbxproj").write_text("\n".join(out) + "\n")
+    (project_dir / "project.pbxproj").write_text(contents)
 
     scheme_dir = project_dir / "xcshareddata" / "xcschemes"
     scheme_dir.mkdir(parents=True, exist_ok=True)
