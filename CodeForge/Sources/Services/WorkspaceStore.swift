@@ -10,7 +10,13 @@ final class WorkspaceStore: ObservableObject {
 
     @Published private(set) var root: FileItem
     @Published var openDocuments: [CodeDocument] = []
-    @Published var activeDocumentID: UUID?
+    @Published var activeDocumentID: UUID? {
+        didSet {
+            // Tabs restored from the last session hold only their path until
+            // they are looked at.
+            openDocuments.first { $0.id == activeDocumentID }?.ensureLoaded()
+        }
+    }
     @Published var expandedFolders: Set<String> = []
     @Published var errorMessage: String?
     @Published var treeVersion: Int = 0
@@ -338,11 +344,12 @@ final class WorkspaceStore: ObservableObject {
     private func restoreSession() {
         let paths = UserDefaults.standard.stringArray(forKey: sessionKey) ?? []
         for path in paths where FileManager.default.fileExists(atPath: path) {
-            if let document = try? CodeDocument.load(from: URL(fileURLWithPath: path)) {
-                openDocuments.append(document)
-            }
+            openDocuments.append(CodeDocument.placeholder(url: URL(fileURLWithPath: path)))
         }
+        // Only the tab that is about to be shown gets read from disk; the
+        // others load when the user switches to them.
         activeDocumentID = openDocuments.first?.id
+        activeDocument?.ensureLoaded()
     }
 
     // MARK: - First-run sample project

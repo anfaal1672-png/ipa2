@@ -18,8 +18,16 @@ final class FileItem: Identifiable, Hashable {
 
     var language: LanguageDefinition { LanguageRegistry.shared.language(forFilename: name) }
 
+    /// Cached: a list row reads size and language while scrolling, and a stat
+    /// per property access means several syscalls per row per frame.
+    /// `invalidate()` clears it, which is what a refresh does anyway.
+    private var cachedAttributes: [FileAttributeKey: Any]?
+
     private var attributes: [FileAttributeKey: Any] {
-        (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
+        if let cachedAttributes { return cachedAttributes }
+        let loaded = (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
+        cachedAttributes = loaded
+        return loaded
     }
 
     var byteSize: Int64 { (attributes[.size] as? NSNumber)?.int64Value ?? 0 }
@@ -51,6 +59,7 @@ final class FileItem: Identifiable, Hashable {
 
     func invalidate() {
         children = nil
+        cachedAttributes = nil
     }
 
     /// SF Symbol shown next to the file in the browser.

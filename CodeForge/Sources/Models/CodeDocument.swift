@@ -22,6 +22,11 @@ final class CodeDocument: ObservableObject, Identifiable {
     private(set) var revision: Int = 0
 
     private var cachedLineCount: Int = 1
+
+    /// False for a tab restored from the last session whose bytes have not been
+    /// read yet. Reading every previously open file at launch is the difference
+    /// between a fast start and one that stalls on a few megabytes.
+    private(set) var isLoaded: Bool = true
     /// Caret position restored when the tab is re-selected.
     var selectedRange: NSRange = NSRange(location: 0, length: 0)
     var encoding: String.Encoding = .utf8
@@ -45,6 +50,28 @@ final class CodeDocument: ObservableObject, Identifiable {
         self.url = url
         self.text = text
         self.cachedLineCount = CodeDocument.countLines(in: text)
+    }
+
+    /// A tab whose contents are read the first time it is looked at.
+    static func placeholder(url: URL) -> CodeDocument {
+        let document = CodeDocument(url: url, text: "")
+        document.isLoaded = false
+        return document
+    }
+
+    /// Reads the file if this is still a placeholder. Cheap and idempotent
+    /// otherwise, so callers can be liberal about it.
+    func ensureLoaded() {
+        guard !isLoaded, let url else { return }
+        isLoaded = true
+        guard let loaded = try? CodeDocument.load(from: url) else { return }
+        encoding = loaded.encoding
+        lineEnding = loaded.lineEnding
+        text = loaded.text
+        cachedLineCount = CodeDocument.countLines(in: loaded.text)
+        revision &+= 1
+        isDirty = false
+        objectWillChange.send()
     }
 
     /// Text arriving from the editor: no revision bump, so the editor is not
@@ -110,6 +137,9 @@ final class CodeDocument: ObservableObject, Identifiable {
 
     func save() throws {
         guard let url else { return }
+        // A placeholder holds an empty string, and writing that would erase the
+        // file it stands for.
+        guard isLoaded else { return }
         var output = text
         if lineEnding != .lf {
             output = text.replacingOccurrences(of: "\n", with: lineEnding.characters)

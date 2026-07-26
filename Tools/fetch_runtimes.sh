@@ -34,8 +34,11 @@ if [ ! -f "$DEST/pyodide/pyodide.js" ]; then
   tar -xjf "$ARCHIVE" -C "$TMP"
   rm -rf "$DEST/pyodide"
   mv "$TMP/pyodide" "$DEST/pyodide"
-  # Source maps and tests are dead weight inside an app bundle.
-  find "$DEST/pyodide" \( -name '*.map' -o -name '*.ts' -o -name 'console.html' \) -delete
+  # Source maps, type definitions and the ES-module entry point are dead weight
+  # inside an app bundle — the runtime page loads the classic pyodide.js.
+  find "$DEST/pyodide" \
+    \( -name '*.map' -o -name '*.ts' -o -name 'console.html' \
+       -o -name 'pyodide.mjs' -o -name 'package.json' -o -name 'README.md' \) -delete
   rm -rf "$TMP"
 else
   log "pyodide already present"

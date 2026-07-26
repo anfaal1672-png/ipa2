@@ -667,12 +667,23 @@ struct SyntaxScanner {
 
     // MARK: - Regex rules
 
+    /// Applies the language's regex rules on top of the scanned tokens.
+    ///
+    /// Matches never override a string or a comment — a `$var` inside a comment
+    /// stays a comment. The replaced tokens are collected and removed in one
+    /// pass at the end: doing it per match turned languages with several rules
+    /// (shell, YAML, Ruby) into a quadratic scan of the whole window.
     private func applyRegexRules(text: String, units: [unichar], region: NSRange,
                                  language lang: LanguageDefinition, tokens: inout [Token]) {
         guard !lang.rules.isEmpty else { return }
-        let protectedRanges = tokens.filter {
-            $0.type == .string || $0.type == .comment || $0.type == .docComment || $0.type == .regex
-        }.map { $0.range }
+
+        let protectedRanges = Self.merge(tokens
+            .filter { $0.type == .string || $0.type == .comment
+                      || $0.type == .docComment || $0.type == .regex }
+            .map { $0.range })
+
+        var additions: [Token] = []
+        var replaced: [NSRange] = []
 
         for rule in lang.rules {
             guard let regex = RegexCache.shared.regex(rule.pattern, rule.options) else { continue }
@@ -680,11 +691,66 @@ struct SyntaxScanner {
                 guard let match, rule.group < match.numberOfRanges else { return }
                 let r = match.range(at: rule.group)
                 guard r.location != NSNotFound, r.length > 0 else { return }
-                for p in protectedRanges where NSIntersectionRange(p, r).length > 0 { return }
-                tokens.removeAll { NSIntersectionRange($0.range, r).length > 0 && $0.type != .string && $0.type != .comment }
-                tokens.append(Token(type: rule.type, range: r))
+                guard !Self.intersects(r, sortedRanges: protectedRanges) else { return }
+                replaced.append(r)
+                additions.append(Token(type: rule.type, range: r))
             }
         }
+
+        guard !additions.isEmpty else { return }
+        replaced = Self.merge(replaced)
+        tokens.removeAll { token in
+            guard token.type != .string, token.type != .comment, token.type != .docComment else {
+                return false
+            }
+            return Self.intersects(token.range, sortedRanges: replaced)
+        }
+        tokens.append(contentsOf: additions)
+    }
+
+    /// Sorts and coalesces, so the search below can assume no two entries
+    /// overlap — with overlapping entries a binary search can step past the one
+    /// that actually covers the range.
+    private static func merge(_ ranges: [NSRange]) -> [NSRange] {
+        guard ranges.count > 1 else { return ranges }
+        let sorted = ranges.sorted { $0.location < $1.location }
+        var result: [NSRange] = [sorted[0]]
+        for range in sorted.dropFirst() {
+            let last = result[result.count - 1]
+            if range.location <= NSMaxRange(last) {
+                let end = max(NSMaxRange(last), NSMaxRange(range))
+                result[result.count - 1] = NSRange(location: last.location, length: end - last.location)
+            } else {
+                result.append(range)
+            }
+        }
+        return result
+    }
+
+    /// Binary search over merged, non-overlapping ranges sorted by location.
+    private static func intersects(_ range: NSRange, sortedRanges ranges: [NSRange]) -> Bool {
+        guard !ranges.isEmpty else { return false }
+        var low = 0
+        var high = ranges.count - 1
+        var candidate = ranges.count
+        while low <= high {
+            let mid = (low + high) / 2
+            if ranges[mid].location >= range.location {
+                candidate = mid
+                high = mid - 1
+            } else {
+                low = mid + 1
+            }
+        }
+        // The first range starting at or after `range`, plus the one before it,
+        // are the only ones that can overlap — ranges from one pass never nest.
+        if candidate < ranges.count, NSIntersectionRange(ranges[candidate], range).length > 0 {
+            return true
+        }
+        if candidate > 0, NSIntersectionRange(ranges[candidate - 1], range).length > 0 {
+            return true
+        }
+        return false
     }
 
     // MARK: - Character helpers

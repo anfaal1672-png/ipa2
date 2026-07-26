@@ -397,6 +397,20 @@ def main():
         "TARGETED_DEVICE_FAMILY": "\"1,2\"",
     }
 
+    target_debug = dict(target_common)
+    # Release is tuned for download size: the app ships as a sideloaded IPA, so
+    # every megabyte is one the user waits through on every install.
+    target_release = dict(target_common, **{
+        "SWIFT_OPTIMIZATION_LEVEL": "\"-Osize\"",
+        "GCC_OPTIMIZATION_LEVEL": "s",
+        "ASSETCATALOG_COMPILER_OPTIMIZATION": "space",
+        "DEPLOYMENT_POSTPROCESSING": "YES",
+        "STRIP_INSTALLED_PRODUCT": "YES",
+        "STRIP_STYLE": "all",
+        "STRIP_SWIFT_SYMBOLS": "YES",
+        "ENABLE_PREVIEWS": "NO",
+    })
+
     def emit_config(config_uid, name, settings):
         body = "\n".join(f"\t\t\t\t{k} = {v};" for k, v in sorted(settings.items()))
         return (
@@ -410,8 +424,8 @@ def main():
     out.append("\n/* Begin XCBuildConfiguration section */")
     out.append(emit_config(uid("projectdebug"), "Debug", project_debug))
     out.append(emit_config(uid("projectrelease"), "Release", project_release))
-    out.append(emit_config(uid("targetdebug"), "Debug", target_common))
-    out.append(emit_config(uid("targetrelease"), "Release", target_common))
+    out.append(emit_config(uid("targetdebug"), "Debug", target_debug))
+    out.append(emit_config(uid("targetrelease"), "Release", target_release))
     out.append("/* End XCBuildConfiguration section */")
 
     out.append("\n/* Begin XCConfigurationList section */")
