@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lua</title>
+<link rel="stylesheet" href="./terminal.css">
+</head>
+<body>
+<div id="status"><i class="dot"></i><span class="label">Lua を起動しています…</span></div>
+<pre id="out"></pre>
+<script src="./runner.js"></script>
+<script src="../fengari/fengari-web.js"></script>
+<script>
+(async function () {
+  const started = performance.now();
+  if (typeof fengari === 'undefined') {
+    CF.status('Lua ランタイムが見つかりません', 'failed');
+    CF.printError('fengari-web.js could not be loaded');
+    return;
+  }
+  const { lua, lauxlib, lualib, to_luastring, to_jsstring } = fengari;
+
+  let code;
+  try {
+    code = await CF.source();
+  } catch (error) {
+    CF.status('ファイルを読めませんでした', 'failed');
+    CF.printError(String(error));
+    return;
+  }
+
+  const L = lauxlib.luaL_newstate();
+  lualib.luaL_openlibs(L);
+
+  // Route Lua's print() into the terminal.
+  lua.lua_pushcfunction(L, function (L) {
+    const count = lua.lua_gettop(L);
+    const parts = [];
+    for (let i = 1; i <= count; i++) {
+      parts.push(to_jsstring(lauxlib.luaL_tolstring(L, i)));
+      lua.lua_pop(L, 1);
+    }
+    CF.print(parts.join('\t'));
+    return 0;
+  });
+  lua.lua_setglobal(L, to_luastring('print'));
+
+  CF.status('Lua — 実行中…');
+  CF.printMeta('Lua 5.4 (Fengari)  (' + CF.since(started) + ' で起動)');
+
+  const runStarted = performance.now();
+  const loadStatus = lauxlib.luaL_loadbuffer(L, to_luastring(code), null, to_luastring('@script'));
+  if (loadStatus !== lua.LUA_OK) {
+    CF.status('構文エラー', 'failed');
+    CF.printError(to_jsstring(lua.lua_tostring(L, -1)));
+    return;
+  }
+  const callStatus = lua.lua_pcall(L, 0, lua.LUA_MULTRET, 0);
+  if (callStatus !== lua.LUA_OK) {
+    CF.status('エラーで終了しました', 'failed');
+    CF.printError(to_jsstring(lua.lua_tostring(L, -1)));
+    return;
+  }
+  CF.status('完了 (' + CF.since(runStarted) + ')', 'done');
+})();
+</script>
+</body>
+</html>

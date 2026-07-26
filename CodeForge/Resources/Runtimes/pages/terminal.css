@@ -1,0 +1,46 @@
+/* Shared shell for every runtime page: a small terminal that shows output as
+   it arrives, so the user sees progress instead of a blank screen while a
+   multi-megabyte WebAssembly runtime boots. */
+:root { color-scheme: dark light; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg, #0b0f17);
+  color: var(--fg, #d6deeb);
+  font: 13px/1.55 ui-monospace, Menlo, monospace;
+  -webkit-text-size-adjust: 100%;
+}
+#status {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface, #141b27);
+  border-bottom: 1px solid var(--line, #1e2735);
+  font-size: 12px;
+}
+#status .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent, #62b4ff);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+#status.done .dot { animation: none; background: #3fb950; }
+#status.failed .dot { animation: none; background: #f85149; }
+@keyframes pulse { 0%, 100% { opacity: .35 } 50% { opacity: 1 } }
+#out {
+  margin: 0; padding: 12px 14px 60px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.line { display: block; }
+.err { color: #ff7b72; }
+.warn { color: #e3b341; }
+.meta { color: var(--muted, #5c6773); }
+table.result {
+  border-collapse: collapse; margin: 6px 0 14px; font-size: 12px;
+  display: block; overflow-x: auto; max-width: 100%;
+}
+table.result th, table.result td {
+  border: 1px solid var(--line, #1e2735); padding: 4px 8px; text-align: left;
+  white-space: nowrap;
+}
+table.result th { background: var(--surface, #141b27); }

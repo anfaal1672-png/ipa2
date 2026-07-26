@@ -20,6 +20,9 @@ BUILD_VERSION = "1"
 
 SOURCE_ROOT = ROOT / PROJECT_NAME / "Sources"
 RESOURCE_FILES = [f"{PROJECT_NAME}/Resources/Assets.xcassets"]
+# Copied into the bundle whole, keeping their directory structure — this is how
+# the WebAssembly runtimes (Pyodide and friends) reach the app.
+RESOURCE_FOLDERS = [f"{PROJECT_NAME}/Resources/Runtimes"]
 INFO_PLIST = f"{PROJECT_NAME}/Resources/Info.plist"
 
 
@@ -159,7 +162,8 @@ def emit_groups(tree, name, path_component, lines, is_root=False):
 
 def main():
     sources = swift_sources()
-    all_files = sources + RESOURCE_FILES + [INFO_PLIST]
+    resources = RESOURCE_FILES + RESOURCE_FOLDERS
+    all_files = sources + resources + [INFO_PLIST]
 
     target_uid = uid("target")
     project_uid = uid("project")
@@ -187,7 +191,7 @@ def main():
             f"\t\t{uid('build:' + path)} /* {Path(path).name} in Sources */ = "
             f"{{isa = PBXBuildFile; fileRef = {uid('file:' + path)} /* {Path(path).name} */; }};"
         )
-    for path in RESOURCE_FILES:
+    for path in resources:
         out.append(
             f"\t\t{uid('build:' + path)} /* {Path(path).name} in Resources */ = "
             f"{{isa = PBXBuildFile; fileRef = {uid('file:' + path)} /* {Path(path).name} */; }};"
@@ -202,6 +206,8 @@ def main():
             file_type = "sourcecode.swift"
         elif name.endswith(".xcassets"):
             file_type = "folder.assetcatalog"
+        elif path in RESOURCE_FOLDERS:
+            file_type = "folder"
         elif name.endswith(".plist"):
             file_type = "text.plist.xml"
         else:
@@ -299,7 +305,7 @@ def main():
     out.append("\n/* Begin PBXResourcesBuildPhase section */")
     resource_refs = "\n".join(
         f"\t\t\t\t{uid('build:' + path)} /* {Path(path).name} in Resources */,"
-        for path in RESOURCE_FILES
+        for path in resources
     )
     out.append(
         f"\t\t{resources_phase_uid} /* Resources */ = {{\n"

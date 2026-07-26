@@ -28,6 +28,11 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - name: Fetch bundled language runtimes
+        run: |
+          chmod +x Tools/fetch_runtimes.sh
+          Tools/fetch_runtimes.sh
+
       - name: Regenerate Xcode project
         run: python3 Tools/generate_project.py
 

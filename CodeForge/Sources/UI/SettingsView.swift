@@ -104,6 +104,25 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    ForEach(RuntimeCatalog.shared.all) { runtime in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: runtime.isAvailable ? "checkmark.circle.fill" : "circle.dashed")
+                                .foregroundColor(runtime.isAvailable ? .green : .secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(runtime.displayName)
+                                Text(runtime.notes)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text(L("Bundled runtimes"))
+                } footer: {
+                    Text(L("These run inside the app, offline. HTML, CSS, JavaScript, Markdown, JSON and SVG are handled by the system web engine."))
+                }
+
+                Section {
                     Button(role: .destructive) {
                         showResetConfirmation = true
                     } label: {
