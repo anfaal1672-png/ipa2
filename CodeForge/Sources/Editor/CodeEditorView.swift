@@ -585,7 +585,9 @@ struct CodeEditorView: UIViewRepresentable {
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange,
                       replacementText text: String) -> Bool {
             let language = document.language
-            let ns = textView.textNS
+            // The delegate signature hands back a plain UITextView; go through
+            // ours so this reads the buffer without copying it per keystroke.
+            guard let ns = (textView as? CodeTextView)?.textNS else { return true }
 
             // Return: copy the current line's indentation, add one level after an opener.
             if text == "\n", settings.autoIndent {
