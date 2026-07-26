@@ -101,15 +101,39 @@ final class CodeTextStorage: NSTextStorage {
         let ns = backing.string as NSString
         var starts: [Int] = [0]
         starts.reserveCapacity(ns.length / 30 + 8)
-        var index = 0
-        while index < ns.length {
-            let found = ns.range(of: "\n", options: [],
-                                 range: NSRange(location: index, length: ns.length - index))
-            if found.location == NSNotFound { break }
-            starts.append(found.location + 1)
-            index = found.location + 1
-        }
+        starts.append(contentsOf: Self.newlineOffsets(in: ns,
+                                                      range: NSRange(location: 0, length: ns.length)))
         lineStarts = starts
+    }
+
+    /// Offsets just past every newline in `range`.
+    ///
+    /// Copied out in blocks and scanned as raw UTF-16 rather than asked of
+    /// `NSString.range(of:)` per line: on a multi-megabyte file the per-call
+    /// search machinery dominates, and this is the pass that runs when a big
+    /// file is opened or pasted into.
+    private static func newlineOffsets(in ns: NSString, range: NSRange) -> [Int] {
+        guard range.length > 0 else { return [] }
+        var result: [Int] = []
+        result.reserveCapacity(range.length / 30 + 4)
+
+        let blockSize = 64 * 1024
+        var buffer = [unichar](repeating: 0, count: min(blockSize, range.length))
+        var offset = range.location
+        let end = NSMaxRange(range)
+
+        while offset < end {
+            let count = min(blockSize, end - offset)
+            buffer.withUnsafeMutableBufferPointer { pointer in
+                guard let base = pointer.baseAddress else { return }
+                ns.getCharacters(base, range: NSRange(location: offset, length: count))
+                for index in 0..<count where base[index] == 0x0A {
+                    result.append(offset + index + 1)
+                }
+            }
+            offset += count
+        }
+        return result
     }
 
     /// Patches the index for one edit instead of rescanning: everything before
@@ -143,16 +167,9 @@ final class CodeTextStorage: NSTextStorage {
         var last = first
         while last < lineStarts.count && lineStarts[last] < oldEnd { last += 1 }
 
-        var inserted: [Int] = []
-        var index = editedRange.location
-        let end = NSMaxRange(editedRange)
-        while index < end {
-            let found = ns.range(of: "\n", options: [],
-                                 range: NSRange(location: index, length: end - index))
-            if found.location == NSNotFound { break }
-            inserted.append(found.location + 1)
-            index = found.location + 1
-        }
+        // A paste can be megabytes, so the edited span is scanned the same fast
+        // way as a full rebuild.
+        let inserted = Self.newlineOffsets(in: ns, range: editedRange)
 
         var tail = Array(lineStarts[last...])
         if delta != 0 {

@@ -14,6 +14,9 @@ final class EditorStatus: ObservableObject {
     @Published var selectionLength: Int = 0
     @Published var matchCount: Int = 0
     @Published var currentMatch: Int = 0
+    /// True while the total is still being counted in the background; the find
+    /// bar shows "…" rather than a number that is about to change.
+    @Published var isCounting: Bool = false
 }
 
 final class EditorProxy: ObservableObject {
@@ -25,6 +28,11 @@ final class EditorProxy: ObservableObject {
     let status = EditorStatus()
 
     private var matches: [NSRange] = []
+    private var matchesAreComplete = false
+    private var lastQuery: String?
+    private var lastOptions = FindOptions()
+    private var countingWorkItem: DispatchWorkItem?
+    private let findQueue = DispatchQueue(label: "codeforge.find", qos: .userInitiated)
 
     func focus() { textView?.becomeFirstResponder() }
     func dismissKeyboard() { textView?.resignFirstResponder() }
@@ -155,33 +163,100 @@ final class EditorProxy: ObservableObject {
     }
 
     // MARK: - Find & replace
+    //
+    // Searching a large document has two halves with very different costs:
+    // moving to the next match is one bounded search, while counting every
+    // match is a full scan. They are separated so typing in the find field
+    // never waits for a scan of a multi-megabyte file.
 
     func find(_ query: String, options: FindOptions) {
+        countingWorkItem?.cancel()
+        matches = []
+        matchesAreComplete = false
+
         guard let textView, !query.isEmpty else {
-            matches = []
             status.matchCount = 0
             status.currentMatch = 0
+            status.isCounting = false
             return
         }
-        matches = Self.ranges(of: query, in: textView.text, options: options)
-        status.matchCount = matches.count
-        status.currentMatch = matches.isEmpty ? 0 : 1
-        if let first = matches.first(where: { $0.location >= textView.selectedRange.location }) ?? matches.first {
-            status.currentMatch = (matches.firstIndex { $0 == first } ?? 0) + 1
+
+        lastQuery = query
+        lastOptions = options
+        let text = textView.codeStorage.string as NSString
+
+        // Immediate: jump to the first match at or after the caret. One search,
+        // and it stops as soon as it finds something.
+        if let first = Self.match(of: query, in: text, from: textView.selectedRange.location,
+                                  options: options, backwards: false) {
             select(first)
+        } else if let wrapped = Self.match(of: query, in: text, from: 0,
+                                           options: options, backwards: false) {
+            select(wrapped)
         }
+
+        // Counting every match needs an immutable copy of the whole document.
+        // Past a certain size that copy is itself the expensive part, so the
+        // count is skipped and the find bar shows "—"; stepping still works,
+        // because that never needs the full list.
+        guard text.length <= 8_000_000 else {
+            status.matchCount = -1
+            status.currentMatch = 0
+            status.isCounting = false
+            return
+        }
+
+        // Deferred: the total, on a background queue, against an immutable copy.
+        status.isCounting = true
+        let snapshot = text.copy() as? NSString ?? text
+        let work = DispatchWorkItem { [weak self] in
+            let found = Self.ranges(of: query, in: snapshot, options: options)
+            DispatchQueue.main.async {
+                guard let self, !(self.countingWorkItem?.isCancelled ?? true) else { return }
+                self.matches = found
+                self.matchesAreComplete = true
+                self.status.matchCount = found.count
+                self.status.isCounting = false
+                if let current = self.textView?.selectedRange,
+                   let index = found.firstIndex(where: { $0.location == current.location }) {
+                    self.status.currentMatch = index + 1
+                }
+            }
+        }
+        countingWorkItem = work
+        findQueue.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
 
-    func findNext() { step(by: 1) }
-    func findPrevious() { step(by: -1) }
+    func findNext() { step(forward: true) }
+    func findPrevious() { step(forward: false) }
 
-    private func step(by delta: Int) {
-        guard !matches.isEmpty else { return }
-        var index = status.currentMatch - 1 + delta
-        if index < 0 { index = matches.count - 1 }
-        if index >= matches.count { index = 0 }
-        status.currentMatch = index + 1
-        select(matches[index])
+    private func step(forward: Bool) {
+        guard let textView else { return }
+
+        // With the full list in hand, stepping is an index move.
+        if matchesAreComplete, !matches.isEmpty {
+            var index = status.currentMatch - 1 + (forward ? 1 : -1)
+            if index < 0 { index = matches.count - 1 }
+            if index >= matches.count { index = 0 }
+            status.currentMatch = index + 1
+            select(matches[index])
+            return
+        }
+
+        // Otherwise search outward from the selection, which does not depend on
+        // the size of the document.
+        guard let query = lastQuery, !query.isEmpty else { return }
+        let text = textView.codeStorage.string as NSString
+        let selection = textView.selectedRange
+        let origin = forward ? NSMaxRange(selection) : selection.location
+        if let next = Self.match(of: query, in: text, from: origin,
+                                 options: lastOptions, backwards: !forward) {
+            select(next)
+        } else if let wrapped = Self.match(of: query, in: text,
+                                           from: forward ? 0 : text.length,
+                                           options: lastOptions, backwards: !forward) {
+            select(wrapped)
+        }
     }
 
     private func select(_ range: NSRange) {
@@ -192,18 +267,21 @@ final class EditorProxy: ObservableObject {
     }
 
     func replaceCurrent(with replacement: String, query: String, options: FindOptions) {
-        guard let textView, !matches.isEmpty, status.currentMatch > 0 else { return }
-        let range = matches[status.currentMatch - 1]
-        guard let textRange = textView.textRange(from: range) else { return }
+        guard let textView else { return }
+        // The current selection *is* the current match, so this works whether
+        // or not the background count has finished.
+        let range = textView.selectedRange
+        guard range.length > 0, let textRange = textView.textRange(from: range) else { return }
         textView.replace(textRange, withText: replacement)
         find(query, options: options)
     }
 
     func replaceAll(with replacement: String, query: String, options: FindOptions) {
         guard let textView, !query.isEmpty else { return }
-        let ranges = Self.ranges(of: query, in: textView.text, options: options)
+        let ranges = Self.ranges(of: query, in: textView.codeStorage.string as NSString,
+                                 options: options)
         guard !ranges.isEmpty else { return }
-        let ns = NSMutableString(string: textView.text)
+        let ns = NSMutableString(string: textView.codeStorage.string)
         for range in ranges.reversed() {
             ns.replaceCharacters(in: range, with: replacement)
         }
@@ -214,8 +292,64 @@ final class EditorProxy: ObservableObject {
         find(query, options: options)
     }
 
-    static func ranges(of query: String, in text: String, options: FindOptions) -> [NSRange] {
-        let ns = text as NSString
+    /// One search, bounded: finds the next (or previous) match from `origin`
+    /// without scanning the rest of the document. This is what keeps stepping
+    /// through matches instant no matter how big the file is.
+    static func match(of query: String, in ns: NSString, from origin: Int,
+                      options: FindOptions, backwards: Bool) -> NSRange? {
+        let length = ns.length
+        let start = max(0, min(origin, length))
+        let searchRange = backwards
+            ? NSRange(location: 0, length: start)
+            : NSRange(location: start, length: length - start)
+        guard searchRange.length > 0 else { return nil }
+
+        if options.useRegex {
+            var regexOptions: NSRegularExpression.Options = []
+            if !options.caseSensitive { regexOptions.insert(.caseInsensitive) }
+            guard let regex = try? NSRegularExpression(pattern: query, options: regexOptions) else {
+                return nil
+            }
+            let text = ns as String
+            if backwards {
+                var last: NSRange?
+                regex.enumerateMatches(in: text, options: [], range: searchRange) { match, _, _ in
+                    if let match, match.range.length > 0 { last = match.range }
+                }
+                return last
+            }
+            let match = regex.firstMatch(in: text, options: [], range: searchRange)
+            return match.map { $0.range }.flatMap { $0.length > 0 ? $0 : nil }
+        }
+
+        var searchOptions: NSString.CompareOptions = [.literal]
+        if !options.caseSensitive { searchOptions.insert(.caseInsensitive) }
+        if backwards { searchOptions.insert(.backwards) }
+
+        var range = searchRange
+        while range.length > 0 {
+            let found = ns.range(of: query, options: searchOptions, range: range)
+            guard found.location != NSNotFound else { return nil }
+            if !options.wholeWord || isWholeWord(found, in: ns) { return found }
+            if backwards {
+                range = NSRange(location: 0, length: found.location)
+            } else {
+                let next = found.location + 1
+                guard next < NSMaxRange(searchRange) else { return nil }
+                range = NSRange(location: next, length: NSMaxRange(searchRange) - next)
+            }
+        }
+        return nil
+    }
+
+    private static func isWholeWord(_ range: NSRange, in ns: NSString) -> Bool {
+        let before = range.location > 0 ? ns.character(at: range.location - 1) : 0
+        let afterIndex = NSMaxRange(range)
+        let after = afterIndex < ns.length ? ns.character(at: afterIndex) : 0
+        return !isWordCharacter(before) && !isWordCharacter(after)
+    }
+
+    static func ranges(of query: String, in ns: NSString, options: FindOptions) -> [NSRange] {
         let full = NSRange(location: 0, length: ns.length)
         var result: [NSRange] = []
 
@@ -223,7 +357,7 @@ final class EditorProxy: ObservableObject {
             var regexOptions: NSRegularExpression.Options = []
             if !options.caseSensitive { regexOptions.insert(.caseInsensitive) }
             guard let regex = try? NSRegularExpression(pattern: query, options: regexOptions) else { return [] }
-            regex.enumerateMatches(in: text, options: [], range: full) { match, _, _ in
+            regex.enumerateMatches(in: ns as String, options: [], range: full) { match, _, _ in
                 if let match, match.range.length > 0 { result.append(match.range) }
             }
             return result
@@ -236,14 +370,7 @@ final class EditorProxy: ObservableObject {
             let found = ns.range(of: query, options: searchOptions,
                                  range: NSRange(location: location, length: ns.length - location))
             if found.location == NSNotFound { break }
-            if options.wholeWord {
-                let before = found.location > 0 ? ns.character(at: found.location - 1) : 0
-                let afterIndex = NSMaxRange(found)
-                let after = afterIndex < ns.length ? ns.character(at: afterIndex) : 0
-                if !isWordCharacter(before) && !isWordCharacter(after) { result.append(found) }
-            } else {
-                result.append(found)
-            }
+            if !options.wholeWord || isWholeWord(found, in: ns) { result.append(found) }
             location = NSMaxRange(found) > found.location ? NSMaxRange(found) : found.location + 1
         }
         return result
@@ -417,18 +544,12 @@ struct CodeEditorView: UIViewRepresentable {
             if !document.isDirty { document.isDirty = true }
             (textView as? CodeTextView)?.refreshGutter()
             proxy.updateCaretReadout()
-            scheduleTextSync()
-        }
-
-        /// Copies the buffer back into the document — debounced, because the
-        /// copy is O(document size) and typing must not pay that per keystroke.
-        private func scheduleTextSync() {
-            syncWorkItem?.cancel()
-            let work = DispatchWorkItem { [weak self] in
-                self?.syncTextNow()
-            }
-            syncWorkItem = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
+            // No periodic copy of the buffer: mirroring the text into the
+            // document costs O(document size), and on a multi-megabyte file
+            // doing that every time typing pauses is felt. It happens at the
+            // points that actually need the text — autosave, explicit save,
+            // preview, tab switch, leaving the editor — and nowhere else.
+            scheduleAutoSave()
         }
 
         func syncTextNow() {

@@ -91,6 +91,44 @@ enum SelfTest {
             check("japanese lookup works",
                   Localization.japanese["Save"] != nil && Localization.japanese["Run"] != nil)
 
+            // --- the line index, on a document big enough to matter -------------
+            //
+            // This is the trickiest code in the editor: it is patched in place
+            // on every edit, and the gutter, the caret readout and go-to-line
+            // all read it. A wrong entry is a wrong line number everywhere.
+            let lineCount = 20_000
+            let body = (0..<lineCount).map { "line \($0) with some text" }.joined(separator: "\n")
+            let storage = CodeTextStorage()
+            storage.syntaxHighlightingEnabled = false
+            let started = Date()
+            storage.replaceCharacters(in: NSRange(location: 0, length: 0), with: body)
+            storage.documentDidChangeWholesale()
+            let indexed = Date().timeIntervalSince(started)
+
+            check("index counts \(lineCount) lines [\(storage.lineCount)]",
+                  storage.lineCount == lineCount)
+            check("index built in \(String(format: "%.3f", indexed))s", indexed < 2.0)
+            check("first line starts at 0", storage.startOfLine(1) == 0)
+            check("line lookup round-trips",
+                  storage.lineNumber(at: storage.startOfLine(12_345)) == 12_345)
+
+            // An edit in the middle must shift everything after it and nothing
+            // before it.
+            let anchorBefore = storage.startOfLine(100)
+            let insertAt = storage.startOfLine(5_000)
+            storage.replaceCharacters(in: NSRange(location: insertAt, length: 0), with: "inserted\n")
+            check("edit keeps earlier lines put", storage.startOfLine(100) == anchorBefore)
+            check("edit adds one line [\(storage.lineCount)]", storage.lineCount == lineCount + 1)
+            check("line after the edit is still found",
+                  storage.lineNumber(at: storage.startOfLine(9_000)) == 9_000)
+
+            let removeStart = storage.startOfLine(200)
+            let removeEnd = storage.startOfLine(300)
+            storage.replaceCharacters(in: NSRange(location: removeStart,
+                                                  length: removeEnd - removeStart), with: "")
+            check("deleting 100 lines removes 100 entries [\(storage.lineCount)]",
+                  storage.lineCount == lineCount + 1 - 100)
+
             if failures.isEmpty {
                 NSLog("SELFTEST RESULT pass (%d checks)", passed)
             } else {

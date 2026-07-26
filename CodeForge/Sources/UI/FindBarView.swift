@@ -13,6 +13,7 @@ struct FindBarView: View {
     @State private var replacement = ""
     @State private var options = FindOptions()
     @State private var showReplace = false
+    @State private var findTask: Task<Void, Never>?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -28,15 +29,20 @@ struct FindBarView: View {
 
                 field(text: $query, prompt: L("Find"), isPrimary: true)
 
-                Text(status.matchCount > 0 ? "\(status.currentMatch)/\(status.matchCount)" : "0")
+                // "…" while the total is still being counted in the background:
+                // on a large file the jump to the first match lands long before
+                // the count does, and showing 0 there would read as "no match".
+                Text(status.isCounting ? "…"
+                     : status.matchCount < 0 ? "—"
+                     : (status.matchCount > 0 ? "\(status.currentMatch)/\(status.matchCount)" : "0"))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(Color(theme.gutterForeground))
                     .frame(minWidth: 38)
 
                 Button { proxy.findPrevious() } label: { Image(systemName: "chevron.up") }
-                    .disabled(status.matchCount == 0)
+                    .disabled(!canNavigate)
                 Button { proxy.findNext() } label: { Image(systemName: "chevron.down") }
-                    .disabled(status.matchCount == 0)
+                    .disabled(!canNavigate)
                 Button {
                     isPresented = false
                     proxy.find("", options: options)
@@ -50,11 +56,11 @@ struct FindBarView: View {
                     Button(L("Replace")) {
                         proxy.replaceCurrent(with: replacement, query: query, options: options)
                     }
-                    .disabled(status.matchCount == 0)
+                    .disabled(!canNavigate)
                     Button(L("All")) {
                         proxy.replaceAll(with: replacement, query: query, options: options)
                     }
-                    .disabled(status.matchCount == 0)
+                    .disabled(query.isEmpty)
                 }
                 .font(.system(size: 13))
             }
@@ -73,8 +79,15 @@ struct FindBarView: View {
         .tint(Color(theme.accent))
         .foregroundColor(Color(theme.foreground))
         .onAppear { focused = true }
-        .onChange(of: query) { _ in proxy.find(query, options: options) }
-        .onChange(of: options) { _ in proxy.find(query, options: options) }
+        .onChange(of: query) { _ in scheduleFind() }
+        .onChange(of: options) { _ in scheduleFind() }
+        .onDisappear { findTask?.cancel() }
+    }
+
+    /// Navigation works as soon as a match is selected, which happens before
+    /// the background count finishes.
+    private var canNavigate: Bool {
+        status.matchCount != 0 || (status.isCounting && !query.isEmpty)
     }
 
     @ViewBuilder
@@ -100,6 +113,18 @@ struct FindBarView: View {
             )
             .submitLabel(.search)
             .onSubmit { proxy.findNext() }
+    }
+
+    /// Typing "function" should not run seven searches.
+    private func scheduleFind() {
+        findTask?.cancel()
+        let query = self.query
+        let options = self.options
+        findTask = Task {
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { proxy.find(query, options: options) }
+        }
     }
 
     private func toggle(_ label: String, isOn: Binding<Bool>, help: String) -> some View {
