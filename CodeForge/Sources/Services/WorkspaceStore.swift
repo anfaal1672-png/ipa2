@@ -34,6 +34,7 @@ final class WorkspaceStore: ObservableObject {
         documentsURL = docs
         root = FileItem(url: docs, isDirectory: true)
         seedSamplesIfNeeded()
+        PreviewWorkspace.sweepStaleFiles(in: docs)
         root.loadChildren(force: true)
         expandedFolders.insert(docs.path)
         restoreSession()

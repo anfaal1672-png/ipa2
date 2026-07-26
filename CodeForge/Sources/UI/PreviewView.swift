@@ -316,7 +316,12 @@ final class PreviewWorkspace {
     func prepare(document: CodeDocument, kind: PreviewKind, theme: EditorTheme) -> PreviewRequest {
         cleanUp()
 
-        let directory = document.url?.deletingLastPathComponent() ?? scratchDirectory
+        // Preferably the file's own folder, so its relative paths resolve; a
+        // scratch folder when there is no file yet or the folder is read-only.
+        var directory = document.url?.deletingLastPathComponent() ?? scratchDirectory
+        if !FileManager.default.isWritableFile(atPath: directory.path) {
+            directory = scratchDirectory
+        }
         let serverIsUp = LocalWebServer.shared.start()
         if serverIsUp {
             LocalWebServer.shared.mount(directory, at: "doc")
@@ -332,9 +337,10 @@ final class PreviewWorkspace {
                 return PreviewRequest(fallbackHTML: PreviewPage.message(
                     title: L("The runtime could not start"), theme: theme))
             }
-            let ext = document.url?.pathExtension.isEmpty == false
-                ? document.url!.pathExtension
-                : (document.language.extensions.first ?? "txt")
+            let fileExtension = document.url?.pathExtension ?? ""
+            let ext = fileExtension.isEmpty
+                ? (document.language.extensions.first ?? "txt")
+                : fileExtension
             let sourceFile = directory.appendingPathComponent(".codeforge-run.\(ext)")
             try? document.text.write(to: sourceFile, atomically: true, encoding: .utf8)
             temporaryFiles.append(sourceFile)
@@ -366,6 +372,18 @@ final class PreviewWorkspace {
             try? FileManager.default.removeItem(at: file)
         }
         temporaryFiles.removeAll()
+    }
+
+    /// Removes scratch files a previous run left behind — the app being killed
+    /// mid-preview is the normal way an iOS app exits.
+    static func sweepStaleFiles(in root: URL) {
+        let manager = FileManager.default
+        guard let walker = manager.enumerator(at: root,
+                                              includingPropertiesForKeys: nil,
+                                              options: [.skipsPackageDescendants]) else { return }
+        for case let url as URL in walker where url.lastPathComponent.hasPrefix(".codeforge-") {
+            try? manager.removeItem(at: url)
+        }
     }
 }
 
