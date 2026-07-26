@@ -33,6 +33,19 @@ jobs:
           chmod +x Tools/fetch_runtimes.sh
           Tools/fetch_runtimes.sh
 
+      - name: Check the Python runtime actually runs
+        run: |
+          cd CodeForge/Resources/Runtimes/pyodide
+          node -e "
+            const { loadPyodide } = require('./pyodide.js');
+            (async () => {
+              const py = await loadPyodide({ indexURL: './' });
+              const result = py.runPython('import sys; f\"{sys.version_info.major}.{sys.version_info.minor}:{sum(range(11))}\"');
+              console.log('pyodide says', result);
+              if (!result.endsWith(':55')) { process.exit(1); }
+            })().catch((error) => { console.error(error); process.exit(1); });
+          "
+
       - name: Regenerate Xcode project
         run: python3 Tools/generate_project.py
 

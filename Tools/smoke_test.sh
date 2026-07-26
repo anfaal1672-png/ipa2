@@ -87,6 +87,28 @@ status=0
 run_once "system language" || status=1
 run_once "Japanese" -AppleLanguages "(ja)" -AppleLocale ja_JP || status=1
 
+# The launch checks only prove the app opens. This runs the in-app self test,
+# which exercises the loopback server, the bundled runtimes and the scanner.
+echo "==> Self test"
+xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+if xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" --selftest > selftest-launch.txt 2>&1; then
+  sleep 12
+  LOG=$(xcrun simctl spawn "$DEVICE_ID" log show --last 60s --style compact \
+        --predicate 'process == "CodeForge"' 2>/dev/null | grep SELFTEST || true)
+  echo "$LOG"
+  if echo "$LOG" | grep -q "SELFTEST RESULT pass"; then
+    echo "    self test passed ✓"
+  else
+    echo "!!! self test did not pass" >&2
+    status=1
+  fi
+else
+  echo "!!! could not launch for the self test" >&2
+  cat selftest-launch.txt >&2
+  status=1
+fi
+xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+
 xcrun simctl shutdown "$DEVICE_ID" 2>/dev/null || true
 
 if [ "$status" -ne 0 ]; then

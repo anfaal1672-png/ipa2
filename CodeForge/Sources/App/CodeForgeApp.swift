@@ -11,6 +11,9 @@ struct CodeForgeApp: App {
             ContentView()
                 .environmentObject(workspace)
                 .environmentObject(settings)
+                .onAppear {
+                    if SelfTest.isEnabled { SelfTest.run() }
+                }
                 .onOpenURL { url in
                     let scoped = url.startAccessingSecurityScopedResource()
                     defer { if scoped { url.stopAccessingSecurityScopedResource() } }

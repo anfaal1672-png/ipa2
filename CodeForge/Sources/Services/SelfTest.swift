@@ -1,0 +1,107 @@
+import Foundation
+
+/// Headless checks the app can run at launch, so CI verifies the machinery the
+/// preview depends on instead of only checking that the app opens.
+///
+/// Launch with `--selftest`; results are written to the system log where the
+/// smoke-test script greps for them.
+enum SelfTest {
+
+    static var isEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains("--selftest")
+    }
+
+    static func run() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            var failures: [String] = []
+            var passed = 0
+
+            func check(_ name: String, _ condition: @autoclosure () -> Bool) {
+                if condition() {
+                    passed += 1
+                    NSLog("SELFTEST ok: %@", name)
+                } else {
+                    failures.append(name)
+                    NSLog("SELFTEST FAIL: %@", name)
+                }
+            }
+
+            // --- the loopback server ---------------------------------------
+            let started = LocalWebServer.shared.start()
+            check("server starts", started)
+            check("server has a port", LocalWebServer.shared.port != 0)
+
+            guard let base = LocalWebServer.shared.baseURL else {
+                NSLog("SELFTEST RESULT fail (server unavailable)")
+                return
+            }
+
+            // --- bundled runtimes -------------------------------------------
+            let runtimeRoot = RuntimeCatalog.shared.rootURL
+            check("runtimes folder is bundled", runtimeRoot != nil)
+            if let runtimeRoot {
+                LocalWebServer.shared.mount(runtimeRoot, at: "runtime")
+            }
+            for runtime in RuntimeCatalog.shared.all {
+                check("runtime available: \(runtime.id)", runtime.isAvailable)
+            }
+
+            // --- serving those files over HTTP --------------------------------
+            let expected: [(String, Int)] = [
+                ("/runtime/pages/python.html", 500),
+                ("/runtime/pages/lua.html", 500),
+                ("/runtime/pages/sql.html", 500),
+                ("/runtime/pyodide/pyodide.js", 5_000),
+                ("/runtime/pyodide/pyodide.asm.wasm", 1_000_000),
+                ("/runtime/pyodide/python_stdlib.zip", 100_000),
+                ("/runtime/fengari/fengari-web.js", 50_000),
+                ("/runtime/sqljs/sql-wasm.js", 10_000),
+                ("/runtime/sqljs/sql-wasm.wasm", 100_000)
+            ]
+            for (path, minimumSize) in expected {
+                let (status, size) = get(base.appendingPathComponent(String(path.dropFirst())))
+                check("GET \(path) [\(status), \(size) bytes]", status == 200 && size >= minimumSize)
+            }
+
+            // --- the server must not serve outside its mounts -------------------
+            if let escape = URL(string: base.absoluteString + "/runtime/../../../etc/passwd") {
+                let (status, _) = get(escape)
+                check("path traversal is refused", status != 200)
+            }
+            let (unmountedStatus, _) = get(base.appendingPathComponent("nowhere/file.txt"))
+            check("unmounted prefix is refused", unmountedStatus == 404)
+
+            // --- the syntax engine ------------------------------------------------
+            check("languages registered", LanguageRegistry.shared.all.count > 100)
+            let swift = LanguageRegistry.shared.language(forFilename: "main.swift")
+            check("swift is detected", swift.id == "swift")
+            let tokens = SyntaxScanner(language: swift).tokenize("let x = \"hi\" // note")
+            check("scanner produces tokens", tokens.count >= 4)
+            check("markdown renders", MarkdownRenderer.html(from: "# Title", theme: Themes.midnight)
+                .contains("<h1"))
+
+            if failures.isEmpty {
+                NSLog("SELFTEST RESULT pass (%d checks)", passed)
+            } else {
+                NSLog("SELFTEST RESULT fail (%d failed: %@)", failures.count,
+                      failures.joined(separator: ", "))
+            }
+        }
+    }
+
+    /// Synchronous GET used only by the self test.
+    private static func get(_ url: URL) -> (status: Int, size: Int) {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        var status = -1
+        var size = 0
+        let semaphore = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            size = data?.count ?? 0
+            semaphore.signal()
+        }.resume()
+        _ = semaphore.wait(timeout: .now() + 15)
+        return (status, size)
+    }
+}
