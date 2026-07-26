@@ -8,7 +8,6 @@ struct FileBrowserView: View {
     @EnvironmentObject private var settings: EditorSettings
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showImporter = false
     @State private var filter = ""
     @State private var newFileFolder: FileItem?
     @State private var newFolderTarget: FileItem?
@@ -41,7 +40,7 @@ struct FileBrowserView: View {
                             newFolderTarget = workspace.root
                             newFolderName = ""
                         } label: { Label(L("New folder"), systemImage: "folder.badge.plus") }
-                        Button { showImporter = true } label: {
+                        Button { importFromFiles() } label: {
                             Label(L("Import from Files"), systemImage: "square.and.arrow.down")
                         }
                         Divider()
@@ -51,14 +50,6 @@ struct FileBrowserView: View {
                     } label: {
                         Image(systemName: "plus.circle.fill").font(.system(size: 18))
                     }
-                }
-            }
-            .fileImporter(isPresented: $showImporter,
-                          allowedContentTypes: [.item],
-                          allowsMultipleSelection: true) { result in
-                switch result {
-                case .success(let urls): workspace.importFiles(from: urls)
-                case .failure(let error): workspace.errorMessage = error.localizedDescription
                 }
             }
             .sheet(item: $newFileFolder) { folder in
@@ -110,6 +101,18 @@ struct FileBrowserView: View {
                 Text(L("This cannot be undone."))
             }
         }
+        // Attached to the navigation stack rather than to its content: the
+        // content already carries two alerts and a confirmation dialog, and
+        // stacking a third on the same view is how presentations get dropped.
+        // Errors have to appear here anyway — an alert on the editor screen
+        // behind this sheet never shows.
+        .alert(L("Something went wrong"),
+               isPresented: Binding(get: { workspace.errorMessage != nil },
+                                    set: { if !$0 { workspace.errorMessage = nil } })) {
+            Button(L("OK"), role: .cancel) { workspace.errorMessage = nil }
+        } message: {
+            Text(workspace.errorMessage ?? "")
+        }
     }
 
     private var fileList: some View {
@@ -141,6 +144,19 @@ struct FileBrowserView: View {
         }
         .listStyle(.insetGrouped)
         .searchable(text: $filter, prompt: L("Filter files"))
+    }
+
+    /// Imports, then opens what was imported — landing on the file is what the
+    /// user was after, and it also makes the outcome visible.
+    private func importFromFiles() {
+        DocumentImporter.shared.present { urls in
+            guard !urls.isEmpty else { return }
+            let imported = workspace.importFiles(from: urls)
+            if let first = imported.first {
+                workspace.open(url: first)
+                dismiss()
+            }
+        }
     }
 
     private var emptyState: some View {

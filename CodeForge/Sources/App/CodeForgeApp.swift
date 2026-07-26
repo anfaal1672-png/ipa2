@@ -15,9 +15,7 @@ struct CodeForgeApp: App {
                     if SelfTest.isEnabled { SelfTest.run() }
                 }
                 .onOpenURL { url in
-                    let scoped = url.startAccessingSecurityScopedResource()
-                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                    workspace.open(url: url)
+                    workspace.openExternal(url: url)
                 }
         }
     }

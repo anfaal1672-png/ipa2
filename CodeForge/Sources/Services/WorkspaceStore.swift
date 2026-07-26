@@ -176,20 +176,55 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
-    func importFiles(from urls: [URL]) {
+    /// Copies files into the workspace, returning where they landed.
+    @discardableResult
+    func importFiles(from urls: [URL], into folder: URL? = nil) -> [URL] {
+        var imported: [URL] = []
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            let destination = uniqueURL(in: documentsURL,
+
+            let destination = uniqueURL(in: folder ?? documentsURL,
                                         base: url.deletingPathExtension().lastPathComponent,
                                         ext: url.pathExtension)
             do {
                 try FileManager.default.copyItem(at: url, to: destination)
+                imported.append(destination)
             } catch {
-                errorMessage = error.localizedDescription
+                // Fall back to reading the bytes: some providers hand over a
+                // URL that cannot be copied but can be read.
+                if let data = try? Data(contentsOf: url) {
+                    do {
+                        try data.write(to: destination, options: .atomic)
+                        imported.append(destination)
+                    } catch {
+                        errorMessage = "\(url.lastPathComponent): \(error.localizedDescription)"
+                    }
+                } else {
+                    errorMessage = "\(url.lastPathComponent): \(error.localizedDescription)"
+                }
             }
         }
         refreshTree()
+        return imported
+    }
+
+    /// A file handed to the app from elsewhere (Share sheet, "Open in…",
+    /// AirDrop). Anything living outside the workspace is copied in first, so
+    /// edits are not written into another app's sandbox — or lost with it.
+    func openExternal(url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+        if url.standardizedFileURL.path.hasPrefix(documentsURL.standardizedFileURL.path) {
+            open(url: url)
+            return
+        }
+        if let copied = importFiles(from: [url]).first {
+            open(url: copied)
+        } else {
+            open(url: url)
+        }
     }
 
     func uniqueURL(in folder: URL, base: String, ext: String) -> URL {
