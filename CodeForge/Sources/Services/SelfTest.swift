@@ -128,6 +128,13 @@ enum SelfTest {
                                                   length: removeEnd - removeStart), with: "")
             check("deleting 100 lines removes 100 entries [\(storage.lineCount)]",
                   storage.lineCount == lineCount + 1 - 100)
+            check("deletion keeps the line above put", storage.startOfLine(200) == removeStart)
+
+            // The incremental index must agree with a from-scratch scan; that is
+            // the property every gutter and caret readout depends on.
+            let patched = storage.lineStarts
+            storage.documentDidChangeWholesale()
+            check("incremental index matches a full rebuild", patched == storage.lineStarts)
 
             if failures.isEmpty {
                 NSLog("SELFTEST RESULT pass (%d checks)", passed)

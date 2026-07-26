@@ -163,9 +163,13 @@ final class CodeTextStorage: NSTextStorage {
             }
         }
 
-        // first line start at or after the end of the replaced span (old coordinates)
+        // Line starts owned by the replaced span (old coordinates). A start with
+        // the value oldEnd comes from the newline at oldEnd - 1, which is the
+        // last character of the span and is therefore going away too — hence
+        // `<=` and not `<`. Getting this wrong leaves one stale entry behind on
+        // every multi-line deletion.
         var last = first
-        while last < lineStarts.count && lineStarts[last] < oldEnd { last += 1 }
+        while last < lineStarts.count && lineStarts[last] <= oldEnd { last += 1 }
 
         // A paste can be megabytes, so the edited span is scanned the same fast
         // way as a full rebuild.
