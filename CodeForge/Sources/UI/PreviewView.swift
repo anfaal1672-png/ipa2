@@ -85,7 +85,15 @@ struct PreviewView: View {
                 } else if let request {
                     WebPreview(request: request,
                                reloadToken: reloadToken,
-                               onConsole: { messages.append($0) },
+                               onConsole: { message in
+                                   messages.append(message)
+                                   // A page that renders wrong because a
+                                   // script died is worse than useless if the
+                                   // reason stays hidden behind a button.
+                                   if message.level == "error" && !showConsole {
+                                       showConsole = true
+                                   }
+                               },
                                onLoadingChange: { isLoading = $0 },
                                onTitleChange: { pageTitle = $0 })
                         .background(Color(theme.background))
@@ -428,6 +436,17 @@ private struct WebPreview: UIViewRepresentable {
           window.addEventListener('error', function (event) {
             send('error', [event.message + '  (' + (event.filename || 'inline') + ':' + event.lineno + ')']);
           });
+          // Capture phase, because a <script>/<link>/<img> that fails to load
+          // fires on the element, not on window — and a silently missing CDN
+          // script is exactly the kind of failure that leaves a page
+          // half-built with no error in sight.
+          window.addEventListener('error', function (event) {
+            var target = event.target;
+            if (!target || target === window || !target.tagName) { return; }
+            var url = target.src || target.href;
+            if (!url) { return; }
+            send('error', ['読み込めませんでした: <' + target.tagName.toLowerCase() + '> ' + url]);
+          }, true);
           window.addEventListener('unhandledrejection', function (event) {
             send('error', ['Unhandled promise rejection: ' + stringify(event.reason)]);
           });

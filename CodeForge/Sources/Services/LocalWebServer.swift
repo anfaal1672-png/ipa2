@@ -197,11 +197,11 @@ final class LocalWebServer {
         header += "Content-Type: \(type)\r\n"
         header += "Content-Length: \(contentLength ?? body.count)\r\n"
         header += "Cache-Control: no-store\r\n"
-        // Cross-origin isolation, so runtimes that want SharedArrayBuffer
-        // (threaded WebAssembly) can have it.
-        header += "Cross-Origin-Opener-Policy: same-origin\r\n"
-        header += "Cross-Origin-Embedder-Policy: require-corp\r\n"
-        header += "Cross-Origin-Resource-Policy: same-origin\r\n"
+        // Deliberately *not* sending COOP/COEP. Cross-origin isolation would
+        // unlock SharedArrayBuffer, but `require-corp` also blocks every
+        // third-party script, stylesheet and font that does not opt in — which
+        // is most CDNs — and a page that works on CodePen would half-load here.
+        // The bundled runtimes do not need it.
         header += "Connection: close\r\n\r\n"
 
         var response = Data(header.utf8)

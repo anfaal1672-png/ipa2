@@ -9,7 +9,7 @@ enum PreviewPage {
         let source = document.text
         switch kind {
         case .html:
-            return source
+            return prepared(source)
         case .svg:
             return page(body: source, theme: theme,
                         extraCSS: "svg { max-width: 100%; height: auto; }")
@@ -25,6 +25,66 @@ enum PreviewPage {
         case .runtime, .unsupported:
             return page(body: "", theme: theme)
         }
+    }
+
+    /// Serves the user's own HTML as a browser would after a playground has
+    /// filled in the boilerplate.
+    ///
+    /// Two things routinely differ between a file on disk and the same markup
+    /// in CodePen or JSFiddle, and both wreck the layout:
+    ///
+    /// * a missing viewport meta — WebKit then lays the page out at 980 CSS
+    ///   points and scales it, so anything sized against the viewport lands in
+    ///   the wrong place;
+    /// * a bare fragment — the HTML pane of a playground holds body markup
+    ///   only, and pasting that into a file leaves no `<html>` or `<head>`.
+    ///
+    /// Anything already present is left untouched.
+    static func prepared(_ source: String) -> String {
+        let lowercased = source.lowercased()
+        let hasViewport = lowercased.contains("name=\"viewport\"")
+            || lowercased.contains("name='viewport'")
+        let hasCharset = lowercased.contains("<meta charset")
+            || lowercased.contains("http-equiv=\"content-type\"")
+
+        var injected = ""
+        if !hasCharset { injected += "<meta charset=\"utf-8\">\n" }
+        if !hasViewport {
+            injected += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+        }
+        guard !injected.isEmpty else { return source }
+
+        // A document with a head: put the tags at the very top of it.
+        if let headRange = range(of: "<head", in: source),
+           let headEnd = source.range(of: ">", range: headRange.lowerBound..<source.endIndex) {
+            var result = source
+            result.insert(contentsOf: "\n" + injected, at: headEnd.upperBound)
+            return result
+        }
+
+        // A document without a head, but with <html>: give it one.
+        if let htmlRange = range(of: "<html", in: source),
+           let htmlEnd = source.range(of: ">", range: htmlRange.lowerBound..<source.endIndex) {
+            var result = source
+            result.insert(contentsOf: "\n<head>\n\(injected)</head>", at: htmlEnd.upperBound)
+            return result
+        }
+
+        // A fragment: wrap it.
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        \(injected)</head>
+        <body>
+        \(source)
+        </body>
+        </html>
+        """
+    }
+
+    private static func range(of needle: String, in haystack: String) -> Range<String.Index>? {
+        haystack.range(of: needle, options: [.caseInsensitive])
     }
 
     static func message(title: String, theme: EditorTheme) -> String {
