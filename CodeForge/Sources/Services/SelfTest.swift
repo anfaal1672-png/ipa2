@@ -100,10 +100,10 @@ enum SelfTest {
             let body = (0..<lineCount).map { "line \($0) with some text" }.joined(separator: "\n")
             let storage = CodeTextStorage()
             storage.syntaxHighlightingEnabled = false
-            let started = Date()
+            let indexingBegan = Date()
             storage.replaceCharacters(in: NSRange(location: 0, length: 0), with: body)
             storage.documentDidChangeWholesale()
-            let indexed = Date().timeIntervalSince(started)
+            let indexed = Date().timeIntervalSince(indexingBegan)
 
             check("index counts \(lineCount) lines [\(storage.lineCount)]",
                   storage.lineCount == lineCount)

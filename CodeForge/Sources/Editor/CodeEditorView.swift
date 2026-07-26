@@ -528,7 +528,6 @@ struct CodeEditorView: UIViewRepresentable {
         var isApplyingExternalChange = false
         var isEditing = false
         private var saveWorkItem: DispatchWorkItem?
-        private var syncWorkItem: DispatchWorkItem?
 
         init(document: CodeDocument, settings: EditorSettings, proxy: EditorProxy) {
             self.document = document
