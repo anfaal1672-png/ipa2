@@ -4,7 +4,8 @@ import SwiftUI
 struct FindBarView: View {
 
     let theme: EditorTheme
-    @ObservedObject var proxy: EditorProxy
+    let proxy: EditorProxy
+    @ObservedObject var status: EditorStatus
     let language: LanguageDefinition
     @Binding var isPresented: Bool
 
@@ -27,15 +28,15 @@ struct FindBarView: View {
 
                 field(text: $query, prompt: L("Find"), isPrimary: true)
 
-                Text(proxy.matchCount > 0 ? "\(proxy.currentMatch)/\(proxy.matchCount)" : "0")
+                Text(status.matchCount > 0 ? "\(status.currentMatch)/\(status.matchCount)" : "0")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(Color(theme.gutterForeground))
                     .frame(minWidth: 38)
 
                 Button { proxy.findPrevious() } label: { Image(systemName: "chevron.up") }
-                    .disabled(proxy.matchCount == 0)
+                    .disabled(status.matchCount == 0)
                 Button { proxy.findNext() } label: { Image(systemName: "chevron.down") }
-                    .disabled(proxy.matchCount == 0)
+                    .disabled(status.matchCount == 0)
                 Button {
                     isPresented = false
                     proxy.find("", options: options)
@@ -49,11 +50,11 @@ struct FindBarView: View {
                     Button(L("Replace")) {
                         proxy.replaceCurrent(with: replacement, query: query, options: options)
                     }
-                    .disabled(proxy.matchCount == 0)
+                    .disabled(status.matchCount == 0)
                     Button(L("All")) {
                         proxy.replaceAll(with: replacement, query: query, options: options)
                     }
-                    .disabled(proxy.matchCount == 0)
+                    .disabled(status.matchCount == 0)
                 }
                 .font(.system(size: 13))
             }

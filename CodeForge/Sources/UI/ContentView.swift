@@ -35,8 +35,8 @@ struct ContentView: View {
                 }
 
                 if showFindBar, let document = workspace.activeDocument {
-                    FindBarView(theme: theme, proxy: proxy, language: document.language,
-                                isPresented: $showFindBar)
+                    FindBarView(theme: theme, proxy: proxy, status: proxy.status,
+                                language: document.language, isPresented: $showFindBar)
                     Divider().background(Color(theme.indentGuide))
                 }
 
@@ -48,7 +48,7 @@ struct ContentView: View {
                     WelcomeView(theme: theme, showBrowser: $showBrowser, showNewFile: $showNewFile)
                 }
 
-                StatusBarView(theme: theme, proxy: proxy,
+                StatusBarView(theme: theme, status: proxy.status,
                               document: workspace.activeDocument,
                               showLanguagePicker: $showLanguagePicker,
                               showGoToLine: $showGoToLine)
@@ -309,7 +309,7 @@ struct ContentView: View {
 
 struct StatusBarView: View {
     let theme: EditorTheme
-    @ObservedObject var proxy: EditorProxy
+    @ObservedObject var status: EditorStatus
     let document: CodeDocument?
     @Binding var showLanguagePicker: Bool
     @Binding var showGoToLine: Bool
@@ -317,10 +317,10 @@ struct StatusBarView: View {
     var body: some View {
         HStack(spacing: 12) {
             Button { showGoToLine = true } label: {
-                Text("\(L("Ln")) \(proxy.caretLine) · \(L("Col")) \(proxy.caretColumn)")
+                Text("\(L("Ln")) \(status.caretLine) · \(L("Col")) \(status.caretColumn)")
             }
-            if proxy.selectionLength > 0 {
-                Text("\(proxy.selectionLength) \(L("selected"))")
+            if status.selectionLength > 0 {
+                Text("\(status.selectionLength) \(L("selected"))")
                     .foregroundColor(Color(theme.gutterForeground))
             }
             Spacer()

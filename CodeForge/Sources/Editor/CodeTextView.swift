@@ -88,8 +88,12 @@ final class GutterView: UIView {
 /// the text, so cost tracks what is on screen, not the length of the file.
 final class CodeTextView: UITextView {
 
+    // Every one of these is assigned on each SwiftUI update — which happens per
+    // keystroke — so they all check for an actual change first. Without the
+    // guards, typing repainted the whole visible text view on every character.
     var theme: EditorTheme = Themes.midnight {
         didSet {
+            guard theme.id != oldValue.id else { return }
             applyTheme()
             gutter.theme = theme
             setNeedsDisplay()
@@ -97,16 +101,22 @@ final class CodeTextView: UITextView {
     }
     var showLineNumbers = true {
         didSet {
+            guard showLineNumbers != oldValue else { return }
             gutter.isHidden = !showLineNumbers
             updateInsets()
             setNeedsDisplay()
         }
     }
-    var highlightCurrentLine = true { didSet { setNeedsDisplay() } }
-    var showIndentGuides = true { didSet { setNeedsDisplay() } }
+    var highlightCurrentLine = true {
+        didSet { if highlightCurrentLine != oldValue { setNeedsDisplay() } }
+    }
+    var showIndentGuides = true {
+        didSet { if showIndentGuides != oldValue { setNeedsDisplay() } }
+    }
     var indentWidth: Int = 4
     var codeFont: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular) {
         didSet {
+            guard codeFont != oldValue else { return }
             gutter.numberFont = .monospacedDigitSystemFont(ofSize: max(9, codeFont.pointSize * 0.82),
                                                            weight: .regular)
             updateInsets()

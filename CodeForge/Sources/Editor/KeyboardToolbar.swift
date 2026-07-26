@@ -54,7 +54,16 @@ final class KeyboardToolbar: UIInputView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    private var configuredLanguage: String?
+    private var configuredTheme: String?
+
     func configure(language: LanguageDefinition, theme: EditorTheme) {
+        // Called on every SwiftUI update; rebuilding forty buttons per
+        // keystroke is both wasteful and visibly janky.
+        guard configuredLanguage != language.id || configuredTheme != theme.id else { return }
+        configuredLanguage = language.id
+        configuredTheme = theme.id
+
         self.theme = theme
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 

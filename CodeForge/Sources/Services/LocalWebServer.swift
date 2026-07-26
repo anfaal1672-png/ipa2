@@ -18,12 +18,18 @@ final class LocalWebServer {
 
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "codeforge.webserver")
-    private(set) var port: UInt16 = 0
+    /// Written on the listener's queue and read from whoever starts a preview,
+    /// so it lives behind the same lock as the mount table.
+    private var storedPort: UInt16 = 0
+    var port: UInt16 {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return storedPort }
+        set { stateLock.lock(); storedPort = newValue; stateLock.unlock() }
+    }
 
     /// Directories exposed under a URL prefix, e.g. "/runtime" → bundled
     /// runtimes, "/doc" → the folder of the file being previewed.
     private var roots: [String: URL] = [:]
-    private let rootsLock = NSLock()
+    private let stateLock = NSLock()
 
     var isRunning: Bool { listener != nil && port != 0 }
 
@@ -76,20 +82,20 @@ final class LocalWebServer {
     }
 
     func mount(_ directory: URL, at prefix: String) {
-        rootsLock.lock()
+        stateLock.lock()
         roots[prefix] = directory.standardizedFileURL
-        rootsLock.unlock()
+        stateLock.unlock()
     }
 
     func unmount(_ prefix: String) {
-        rootsLock.lock()
+        stateLock.lock()
         roots.removeValue(forKey: prefix)
-        rootsLock.unlock()
+        stateLock.unlock()
     }
 
     private func directory(for prefix: String) -> URL? {
-        rootsLock.lock()
-        defer { rootsLock.unlock() }
+        stateLock.lock()
+        defer { stateLock.unlock() }
         return roots[prefix]
     }
 

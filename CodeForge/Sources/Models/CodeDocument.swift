@@ -61,10 +61,18 @@ final class CodeDocument: ObservableObject, Identifiable {
 
     /// Reads the file if this is still a placeholder. Cheap and idempotent
     /// otherwise, so callers can be liberal about it.
+    /// Set when a restored tab could not be read. Saving stays blocked in that
+    /// case: an empty buffer standing in for a file that exists must never be
+    /// written back over it.
+    private(set) var loadFailed = false
+
     func ensureLoaded() {
         guard !isLoaded, let url else { return }
         isLoaded = true
-        guard let loaded = try? CodeDocument.load(from: url) else { return }
+        guard let loaded = try? CodeDocument.load(from: url) else {
+            loadFailed = true
+            return
+        }
         encoding = loaded.encoding
         lineEnding = loaded.lineEnding
         text = loaded.text
@@ -139,7 +147,7 @@ final class CodeDocument: ObservableObject, Identifiable {
         guard let url else { return }
         // A placeholder holds an empty string, and writing that would erase the
         // file it stands for.
-        guard isLoaded else { return }
+        guard isLoaded, !loadFailed else { return }
         var output = text
         if lineEnding != .lf {
             output = text.replacingOccurrences(of: "\n", with: lineEnding.characters)

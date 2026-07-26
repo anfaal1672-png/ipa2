@@ -3,16 +3,26 @@ import UIKit
 
 /// Bridge object that lets SwiftUI drive the underlying text view (find &
 /// replace, jump to line, indent commands, caret readout).
-final class EditorProxy: ObservableObject {
-
-    weak var textView: CodeTextView?
-    /// Set by the editor screen; invoked by the run key in the keyboard row.
-    var onRunRequested: (() -> Void)?
+/// The handful of values the status bar and the find bar display.
+///
+/// Kept apart from `EditorProxy` on purpose: these change on every keystroke,
+/// and if the object the editor screen holds published them, the whole screen —
+/// including the text view's `updateUIView` — would be rebuilt per character.
+final class EditorStatus: ObservableObject {
     @Published var caretLine: Int = 1
     @Published var caretColumn: Int = 1
     @Published var selectionLength: Int = 0
     @Published var matchCount: Int = 0
     @Published var currentMatch: Int = 0
+}
+
+final class EditorProxy: ObservableObject {
+
+    weak var textView: CodeTextView?
+    /// Set by the editor screen; invoked by the run key in the keyboard row.
+    var onRunRequested: (() -> Void)?
+    /// Deliberately not `@Published`: see `EditorStatus`.
+    let status = EditorStatus()
 
     private var matches: [NSRange] = []
 
@@ -30,9 +40,11 @@ final class EditorProxy: ObservableObject {
     func updateCaretReadout() {
         guard let textView else { return }
         let position = textView.caretPosition
-        caretLine = position.line
-        caretColumn = position.column
-        selectionLength = textView.selectedRange.length
+        let length = textView.selectedRange.length
+        // Assigning an unchanged value would still publish and redraw.
+        if status.caretLine != position.line { status.caretLine = position.line }
+        if status.caretColumn != position.column { status.caretColumn = position.column }
+        if status.selectionLength != length { status.selectionLength = length }
     }
 
     // MARK: - Editing commands
@@ -147,15 +159,15 @@ final class EditorProxy: ObservableObject {
     func find(_ query: String, options: FindOptions) {
         guard let textView, !query.isEmpty else {
             matches = []
-            matchCount = 0
-            currentMatch = 0
+            status.matchCount = 0
+            status.currentMatch = 0
             return
         }
         matches = Self.ranges(of: query, in: textView.text, options: options)
-        matchCount = matches.count
-        currentMatch = matches.isEmpty ? 0 : 1
+        status.matchCount = matches.count
+        status.currentMatch = matches.isEmpty ? 0 : 1
         if let first = matches.first(where: { $0.location >= textView.selectedRange.location }) ?? matches.first {
-            currentMatch = (matches.firstIndex { $0 == first } ?? 0) + 1
+            status.currentMatch = (matches.firstIndex { $0 == first } ?? 0) + 1
             select(first)
         }
     }
@@ -165,10 +177,10 @@ final class EditorProxy: ObservableObject {
 
     private func step(by delta: Int) {
         guard !matches.isEmpty else { return }
-        var index = currentMatch - 1 + delta
+        var index = status.currentMatch - 1 + delta
         if index < 0 { index = matches.count - 1 }
         if index >= matches.count { index = 0 }
-        currentMatch = index + 1
+        status.currentMatch = index + 1
         select(matches[index])
     }
 
@@ -180,8 +192,8 @@ final class EditorProxy: ObservableObject {
     }
 
     func replaceCurrent(with replacement: String, query: String, options: FindOptions) {
-        guard let textView, !matches.isEmpty, currentMatch > 0 else { return }
-        let range = matches[currentMatch - 1]
+        guard let textView, !matches.isEmpty, status.currentMatch > 0 else { return }
+        let range = matches[status.currentMatch - 1]
         guard let textRange = textView.textRange(from: range) else { return }
         textView.replace(textRange, withText: replacement)
         find(query, options: options)
@@ -359,15 +371,19 @@ struct CodeEditorView: UIViewRepresentable {
         textView.showIndentGuides = settings.showIndentGuides
         textView.indentWidth = settings.tabWidth
 
+        // Reassigning the container size re-runs layout for the whole document,
+        // and this method is called on every SwiftUI update.
         let wraps = settings.wrapLines
-        textView.textContainer.widthTracksTextView = wraps
-        textView.textContainer.size = CGSize(
-            width: wraps ? 0 : CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude)
+        if textView.textContainer.widthTracksTextView != wraps {
+            textView.textContainer.widthTracksTextView = wraps
+            textView.textContainer.size = CGSize(
+                width: wraps ? 0 : CGFloat.greatestFiniteMagnitude,
+                height: CGFloat.greatestFiniteMagnitude)
+            textView.showsHorizontalScrollIndicator = !wraps
+            textView.setNeedsDisplay()
+        }
         textView.isScrollEnabled = true
-        textView.showsHorizontalScrollIndicator = !wraps
         textView.setPinchZoomEnabled(settings.pinchToZoom)
-        textView.setNeedsDisplay()
     }
 
     // MARK: - Coordinator
