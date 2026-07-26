@@ -152,12 +152,22 @@ final class LocalWebServer {
         }
 
         do {
-            let data = method == "HEAD" ? Data() : try Data(contentsOf: fileURL, options: .mappedIfSafe)
-            let length = method == "HEAD"
-                ? (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0
-                : data.count
-            send(status: "200 OK", body: data, type: Self.contentType(for: fileURL),
-                 contentLength: length ?? data.count, on: connection)
+            let contents = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+            let type = Self.contentType(for: fileURL)
+
+            // `<video>` and `<audio>` will not play a resource that cannot be
+            // fetched in pieces, so range requests get a real 206.
+            if let range = Self.parseRange(head, totalLength: contents.count), method == "GET" {
+                let slice = contents.subdata(in: range)
+                send(status: "206 Partial Content", body: slice, type: type,
+                     extraHeaders: ["Content-Range":
+                                    "bytes \(range.lowerBound)-\(range.upperBound - 1)/\(contents.count)"],
+                     on: connection)
+                return
+            }
+
+            send(status: "200 OK", body: method == "HEAD" ? Data() : contents, type: type,
+                 contentLength: contents.count, on: connection)
         } catch {
             send(status: "404 Not Found", body: Data("Unreadable".utf8),
                  type: "text/plain", on: connection)
@@ -191,11 +201,42 @@ final class LocalWebServer {
         return target
     }
 
+    /// `Range: bytes=start-end`, clamped to the file. Only the single-range
+    /// form is supported, which is all media elements ask for.
+    private static func parseRange(_ head: String, totalLength: Int) -> Range<Int>? {
+        guard totalLength > 0 else { return nil }
+        let lines = head.components(separatedBy: "\r\n")
+        guard let line = lines.first(where: { $0.lowercased().hasPrefix("range:") }),
+              let spec = line.split(separator: "=").last?.trimmingCharacters(in: .whitespaces),
+              !spec.contains(",") else { return nil }
+
+        let parts = spec.split(separator: "-", omittingEmptySubsequences: false)
+        guard let first = parts.first else { return nil }
+        let startText = String(first)
+        let endText = parts.count > 1 ? String(parts[1]) : ""
+
+        if startText.isEmpty {
+            // "bytes=-500": the final 500 bytes.
+            guard let suffix = Int(endText), suffix > 0 else { return nil }
+            return max(0, totalLength - suffix)..<totalLength
+        }
+        guard let start = Int(startText), start < totalLength else { return nil }
+        let end = Int(endText).map { min($0 + 1, totalLength) } ?? totalLength
+        guard end > start else { return nil }
+        return start..<end
+    }
+
     private func send(status: String, body: Data, type: String,
-                      contentLength: Int? = nil, on connection: NWConnection) {
+                      contentLength: Int? = nil,
+                      extraHeaders: [String: String] = [:],
+                      on connection: NWConnection) {
         var header = "HTTP/1.1 \(status)\r\n"
         header += "Content-Type: \(type)\r\n"
         header += "Content-Length: \(contentLength ?? body.count)\r\n"
+        header += "Accept-Ranges: bytes\r\n"
+        for (key, value) in extraHeaders {
+            header += "\(key): \(value)\r\n"
+        }
         header += "Cache-Control: no-store\r\n"
         // Deliberately *not* sending COOP/COEP. Cross-origin isolation would
         // unlock SharedArrayBuffer, but `require-corp` also blocks every

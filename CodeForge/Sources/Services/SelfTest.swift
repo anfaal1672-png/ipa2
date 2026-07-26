@@ -63,6 +63,13 @@ enum SelfTest {
                 check("GET \(path) [\(status), \(size) bytes]", status == 200 && size >= minimumSize)
             }
 
+            // --- range requests, which media elements depend on -------------------
+            var ranged = URLRequest(url: base.appendingPathComponent("runtime/pages/terminal.css"))
+            ranged.setValue("bytes=0-9", forHTTPHeaderField: "Range")
+            let (rangeStatus, rangeSize) = send(ranged)
+            check("range request returns 206 with 10 bytes [\(rangeStatus), \(rangeSize)]",
+                  rangeStatus == 206 && rangeSize == 10)
+
             // --- the server must not serve outside its mounts -------------------
             if let escape = URL(string: base.absoluteString + "/runtime/../../../etc/passwd") {
                 let (status, _) = get(escape)
@@ -93,6 +100,13 @@ enum SelfTest {
     private static func get(_ url: URL) -> (status: Int, size: Int) {
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
+        return send(request)
+    }
+
+    private static func send(_ original: URLRequest) -> (status: Int, size: Int) {
+        var request = original
+        request.timeoutInterval = 10
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         var status = -1
         var size = 0
         let semaphore = DispatchSemaphore(value: 0)
