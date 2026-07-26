@@ -6,6 +6,8 @@ import UIKit
 final class EditorProxy: ObservableObject {
 
     weak var textView: CodeTextView?
+    /// Set by the editor screen; invoked by the run key in the keyboard row.
+    var onRunRequested: (() -> Void)?
     @Published var caretLine: Int = 1
     @Published var caretColumn: Int = 1
     @Published var selectionLength: Int = 0
@@ -595,6 +597,12 @@ struct CodeEditorView: UIViewRepresentable {
 
         func toolbarDidTapDismiss() {
             textView?.resignFirstResponder()
+        }
+
+        func toolbarDidTapRun() {
+            syncTextNow()
+            textView?.resignFirstResponder()
+            proxy.onRunRequested?()
         }
     }
 }

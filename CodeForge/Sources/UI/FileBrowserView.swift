@@ -9,6 +9,29 @@ struct FileBrowserView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var filter = ""
+    @State private var sortOrder: SortOrder = .name
+
+    enum SortOrder: String, CaseIterable, Identifiable {
+        case name, modified, size
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .name: return L("Name")
+            case .modified: return L("Last modified")
+            case .size: return L("Size")
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .name: return "textformat"
+            case .modified: return "clock"
+            case .size: return "scalemass"
+            }
+        }
+    }
     @State private var newFileFolder: FileItem?
     @State private var newFolderTarget: FileItem?
     @State private var newFolderName = ""
@@ -44,6 +67,11 @@ struct FileBrowserView: View {
                             Label(L("Import from Files"), systemImage: "square.and.arrow.down")
                         }
                         Divider()
+                        Picker(L("Sort by"), selection: $sortOrder) {
+                            ForEach(SortOrder.allCases) { order in
+                                Label(order.label, systemImage: order.icon).tag(order)
+                            }
+                        }
                         Button { workspace.refreshTree() } label: {
                             Label(L("Refresh"), systemImage: "arrow.clockwise")
                         }
@@ -121,6 +149,7 @@ struct FileBrowserView: View {
                 OutlineRows(items: workspace.root.loadChildren(),
                             level: 0,
                             filter: filter,
+                            sortOrder: sortOrder,
                             onOpen: { item in
                                 workspace.open(item)
                                 dismiss()
@@ -144,6 +173,7 @@ struct FileBrowserView: View {
         }
         .listStyle(.insetGrouped)
         .searchable(text: $filter, prompt: L("Filter files"))
+        .refreshable { workspace.refreshTree() }
     }
 
     /// Imports, then opens what was imported — landing on the file is what the
@@ -188,6 +218,7 @@ private struct OutlineRows: View {
     let items: [FileItem]
     let level: Int
     let filter: String
+    let sortOrder: FileBrowserView.SortOrder
     let onOpen: (FileItem) -> Void
     let onRename: (FileItem) -> Void
     let onDelete: (FileItem) -> Void
@@ -202,6 +233,7 @@ private struct OutlineRows: View {
             row(for: item)
             if item.isDirectory, workspace.expandedFolders.contains(item.url.path) {
                 OutlineRows(items: item.loadChildren(), level: level + 1, filter: filter,
+                            sortOrder: sortOrder,
                             onOpen: onOpen, onRename: onRename, onDelete: onDelete,
                             onDuplicate: onDuplicate, onNewFile: onNewFile, onNewFolder: onNewFolder)
             }
@@ -209,9 +241,21 @@ private struct OutlineRows: View {
     }
 
     private var visibleItems: [FileItem] {
-        guard !filter.isEmpty else { return items }
-        return items.filter { item in
+        let matching = filter.isEmpty ? items : items.filter { item in
             item.isDirectory || item.name.localizedCaseInsensitiveContains(filter)
+        }
+        // Folders stay on top whatever the order — a list that mixes them is
+        // harder to scan, and that is the whole point of sorting.
+        return matching.sorted { lhs, rhs in
+            if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory }
+            switch sortOrder {
+            case .name:
+                return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+            case .modified:
+                return lhs.modifiedAt > rhs.modifiedAt
+            case .size:
+                return lhs.byteSize > rhs.byteSize
+            }
         }
     }
 
@@ -245,11 +289,9 @@ private struct OutlineRows: View {
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.name).lineLimit(1)
-                    if !item.isDirectory {
-                        Text("\(item.language.name) · \(formatted(item.byteSize))")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
+                    Text(subtitle(for: item))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
                 Spacer()
                 if !item.isDirectory {
@@ -292,6 +334,14 @@ private struct OutlineRows: View {
                 Label(L("Delete"), systemImage: "trash")
             }
         }
+    }
+
+    private func subtitle(for item: FileItem) -> String {
+        if item.isDirectory {
+            let count = item.loadChildren().count
+            return count == 1 ? L("1 item") : "\(count) \(L("items"))"
+        }
+        return "\(item.language.name) · \(formatted(item.byteSize))"
     }
 
     private func formatted(_ bytes: Int64) -> String {

@@ -27,6 +27,14 @@ enum PreviewKind: Equatable {
             return .unsupported
         }
     }
+
+    /// True when previewing means running code rather than rendering markup.
+    var isExecutable: Bool {
+        switch self {
+        case .runtime, .javascript: return true
+        default: return false
+        }
+    }
 }
 
 struct ConsoleMessage: Identifiable {

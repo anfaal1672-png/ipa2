@@ -26,7 +26,10 @@ struct OnboardingView: View {
                  body: L("Above the keyboard you get the symbols code needs — brackets, quotes, arrows — and they change to match the language you are editing.")),
             Card(icon: "checkmark.circle.fill",
                  title: L("Nothing to save manually"),
-                 body: L("Your work is saved automatically as you type. The dot next to the file name means there are changes still being written."))
+                 body: L("Your work is saved automatically as you type. The dot next to the file name means there are changes still being written.")),
+            Card(icon: "play.fill",
+                 title: L("Run what you write"),
+                 body: L("Python, Lua, SQL, JavaScript and HTML run on the phone — tap Run in the toolbar. Everything else previews as text."))
         ]
     }
 
@@ -47,7 +50,7 @@ struct OnboardingView: View {
                     .foregroundColor(Color(theme.accent))
                 Text(L("Welcome to CodeForge"))
                     .font(.system(size: 26, weight: .bold, design: .rounded))
-                Text(L("Three things to know"))
+                Text(L("A few things to know"))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -139,6 +142,12 @@ struct HelpView: View {
                      body: L("Tap the page icon at the top, pick a type, and type a name — the extension is added for you.")),
                 Item(icon: "rectangle.on.rectangle", title: L("Switch between open files"),
                      body: L("Use the tabs under the toolbar. Long-press a tab to close others."))
+            ]),
+            (L("Running code"), [
+                Item(icon: "play.fill", title: L("Run this file"),
+                     body: L("Python, Lua, SQL and JavaScript run on the device; HTML, CSS, Markdown, JSON and SVG render. The run key also sits in the keyboard row.")),
+                Item(icon: "terminal", title: L("See the output"),
+                     body: L("print() and console.log() land in the console panel, which opens by itself when something fails."))
             ]),
             (L("Editing"), [
                 Item(icon: "keyboard", title: L("Symbols above the keyboard"),

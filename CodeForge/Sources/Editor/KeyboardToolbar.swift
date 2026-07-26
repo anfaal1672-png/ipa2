@@ -8,6 +8,7 @@ protocol KeyboardToolbarDelegate: AnyObject {
     func toolbarDidTapRedo()
     func toolbarDidMoveCaret(by offset: Int)
     func toolbarDidTapDismiss()
+    func toolbarDidTapRun()
 }
 
 /// The extra key row that sits above the system keyboard. The middle section is
@@ -57,6 +58,11 @@ final class KeyboardToolbar: UIInputView {
         self.theme = theme
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
+        // Running is the thing you do over and over while writing a script, so
+        // it belongs where your hands already are rather than behind a menu.
+        if PreviewKind.kind(for: language).isExecutable {
+            addSymbolButton(system: "play.fill", action: #selector(tapRun), tint: theme.accent)
+        }
         addSymbolButton(system: "arrow.right.to.line", action: #selector(tapTab))
         addSymbolButton(system: "arrow.left.to.line", action: #selector(tapOutdent))
 
@@ -99,9 +105,13 @@ final class KeyboardToolbar: UIInputView {
         stack.addArrangedSubview(button)
     }
 
-    private func addSymbolButton(system name: String, action: Selector) {
+    private func addSymbolButton(system name: String, action: Selector, tint: UIColor? = nil) {
         let button = makeButtonBase()
         button.setImage(UIImage(systemName: name), for: .normal)
+        if let tint {
+            button.tintColor = tint
+            button.backgroundColor = tint.withAlphaComponent(0.18)
+        }
         button.addTarget(self, action: action, for: .touchUpInside)
         stack.addArrangedSubview(button)
     }
@@ -121,6 +131,7 @@ final class KeyboardToolbar: UIInputView {
     @objc private func moveLeft() { delegate?.toolbarDidMoveCaret(by: -1) }
     @objc private func moveRight() { delegate?.toolbarDidMoveCaret(by: 1) }
     @objc private func tapDismiss() { delegate?.toolbarDidTapDismiss() }
+    @objc private func tapRun() { delegate?.toolbarDidTapRun() }
 }
 
 extension KeyboardToolbar: UIInputViewAudioFeedback {

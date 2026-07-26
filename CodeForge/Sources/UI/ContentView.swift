@@ -117,6 +117,7 @@ struct ContentView: View {
         }
         .onAppear {
             workspace.flushEditor = { [weak proxy] in proxy?.flushText() }
+            proxy.onRunRequested = { showPreview = true }
             if !settings.hasSeenOnboarding {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showOnboarding = true }
             }
@@ -153,9 +154,8 @@ struct ContentView: View {
             }
             .disabled(workspace.activeDocument == nil)
 
-            toolbarButton(icon: "play.rectangle", title: L("Preview")) {
-                proxy.flushText()
-                showPreview = true
+            toolbarButton(icon: previewIcon, title: previewTitle) {
+                runPreview()
             }
             .disabled(workspace.activeDocument == nil)
 
@@ -198,10 +198,9 @@ struct ContentView: View {
                 Divider()
 
                 Button {
-                    proxy.flushText()
-                    showPreview = true
+                    runPreview()
                 } label: {
-                    Label(L("Preview"), systemImage: "play.rectangle")
+                    Label(previewTitle, systemImage: previewIcon)
                 }
                 .disabled(workspace.activeDocument == nil)
 
@@ -236,6 +235,30 @@ struct ContentView: View {
         .overlay(alignment: .bottom) {
             Rectangle().frame(height: 0.5).foregroundColor(Color(theme.indentGuide))
         }
+    }
+
+    /// The same button reads "Run" for a language the app can execute and
+    /// "Preview" for one it can only render — the distinction matters enough
+    /// that the button should say which one is about to happen.
+    private var previewKind: PreviewKind? {
+        workspace.activeDocument.map { PreviewKind.kind(for: $0.language) }
+    }
+
+    private var isRunnable: Bool {
+        switch previewKind {
+        case .runtime, .javascript: return true
+        default: return false
+        }
+    }
+
+    private var previewTitle: String { isRunnable ? L("Run") : L("Preview") }
+
+    private var previewIcon: String { isRunnable ? "play.fill" : "eye" }
+
+    private func runPreview() {
+        proxy.flushText()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        showPreview = true
     }
 
     /// Icon plus caption: a bare glyph is guessable only if you already know the
@@ -274,6 +297,7 @@ struct ContentView: View {
     }
 
     private func flashSaved() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
         withAnimation(.easeOut(duration: 0.2)) { savedFlash = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
             withAnimation(.easeIn(duration: 0.25)) { savedFlash = false }
@@ -308,10 +332,20 @@ struct StatusBarView: View {
                     .foregroundColor(Color(theme.gutterForeground))
                 Button { showLanguagePicker = true } label: {
                     HStack(spacing: 3) {
+                        // A play glyph next to the language is the quietest way
+                        // to answer "can this file actually run?"
+                        if PreviewKind.kind(for: document.language).isExecutable {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(Color(theme.accent))
+                        }
                         Text(document.language.name)
                         Image(systemName: "chevron.up.chevron.down").font(.system(size: 7))
                     }
                 }
+                .accessibilityLabel(PreviewKind.kind(for: document.language).isExecutable
+                                    ? "\(document.language.name) — \(L("Runnable"))"
+                                    : document.language.name)
             }
         }
         .font(.system(size: 11, design: .monospaced))
