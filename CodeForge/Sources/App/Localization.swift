@@ -61,6 +61,14 @@ final class Localization {
     static let japanese: [String: String] =
         Dictionary(entries, uniquingKeysWith: { _, latest in latest })
 
+    /// Keys present more than once. Harmless at runtime now that the table is
+    /// built with `uniquingKeysWith`, but always a mistake — the self test
+    /// fails on it so a stray copy is caught in CI rather than in the UI.
+    static var duplicateKeys: [String] {
+        var seen = Set<String>()
+        return entries.compactMap { seen.insert($0.0).inserted ? nil : $0.0 }
+    }
+
     private static let entries: [(String, String)] = [
         // --- toolbar / global -------------------------------------------
         ("Project", "ファイル"),
@@ -229,7 +237,6 @@ final class Localization {
         ("Typography", "文字"),
         ("Font", "フォント"),
         ("Size", "サイズ"),
-        ("Preview", "プレビュー"),
         ("Editing", "編集"),
         ("Tab width", "インデント幅"),
         ("Insert spaces instead of tabs", "タブの代わりにスペースを入れる"),

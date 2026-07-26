@@ -86,6 +86,10 @@ enum SelfTest {
             check("scanner produces tokens", tokens.count >= 4)
             check("markdown renders", MarkdownRenderer.html(from: "# Title", theme: Themes.midnight)
                 .contains("<h1"))
+            check("no duplicate translations: \(Localization.duplicateKeys.joined(separator: ", "))",
+                  Localization.duplicateKeys.isEmpty)
+            check("japanese lookup works",
+                  Localization.japanese["Save"] != nil && Localization.japanese["Run"] != nil)
 
             if failures.isEmpty {
                 NSLog("SELFTEST RESULT pass (%d checks)", passed)
