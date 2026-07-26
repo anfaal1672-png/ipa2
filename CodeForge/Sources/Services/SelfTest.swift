@@ -130,6 +130,12 @@ enum SelfTest {
                   storage.lineCount == lineCount + 1 - 100)
             check("deletion keeps the line above put", storage.startOfLine(200) == removeStart)
 
+            // The no-copy NSString view is what every hot path reads now, so it
+            // has to track the buffer exactly.
+            check("nsString length tracks the buffer [\(storage.nsString.length)]",
+                  storage.nsString.length == storage.length)
+            check("nsString content matches", storage.nsString.substring(to: 6) == "line 0")
+
             // The incremental index must agree with a from-scratch scan; that is
             // the property every gutter and caret readout depends on.
             let patched = storage.lineStarts

@@ -23,6 +23,11 @@ final class CodeDocument: ObservableObject, Identifiable {
 
     private var cachedLineCount: Int = 1
 
+    /// Bumped whenever `text` changes, from any source. Lets a background save
+    /// tell whether the buffer moved on while it was writing, without comparing
+    /// (or measuring) the whole string.
+    private var editEpoch: Int = 0
+
     /// False for a tab restored from the last session whose bytes have not been
     /// read yet. Reading every previously open file at launch is the difference
     /// between a fast start and one that stalls on a few megabytes.
@@ -76,6 +81,7 @@ final class CodeDocument: ObservableObject, Identifiable {
         encoding = loaded.encoding
         lineEnding = loaded.lineEnding
         text = loaded.text
+        editEpoch &+= 1
         cachedLineCount = CodeDocument.countLines(in: loaded.text)
         revision &+= 1
         isDirty = false
@@ -86,12 +92,14 @@ final class CodeDocument: ObservableObject, Identifiable {
     /// asked to reload what it just typed.
     func syncFromEditor(text: String, lineCount: Int) {
         self.text = text
+        editEpoch &+= 1
         self.cachedLineCount = max(1, lineCount)
     }
 
     /// Text arriving from anywhere else; the editor reloads on the next update.
     func replaceText(_ newText: String) {
         text = newText
+        editEpoch &+= 1
         cachedLineCount = CodeDocument.countLines(in: newText)
         revision &+= 1
         isDirty = true
@@ -155,6 +163,33 @@ final class CodeDocument: ObservableObject, Identifiable {
         guard let data = output.data(using: encoding) ?? output.data(using: .utf8) else { return }
         try data.write(to: url, options: .atomic)
         isDirty = false
+    }
+
+    private static let writeQueue = DispatchQueue(label: "codeforge.save", qos: .utility)
+
+    /// Autosave path: encodes and writes off the main thread.
+    ///
+    /// Encoding a multi-megabyte buffer and writing it out takes long enough to
+    /// drop frames, and autosave fires while the user is still working. The text
+    /// is snapshotted first, so a later edit cannot change what is being
+    /// written. Explicit saves still use `save()`, where errors reach the user.
+    func autosave() {
+        guard let url, isLoaded, !loadFailed else { return }
+        let snapshot = text
+        let ending = lineEnding
+        let encoding = self.encoding
+        let epoch = editEpoch
+        Self.writeQueue.async { [weak self] in
+            let output = ending == .lf
+                ? snapshot
+                : snapshot.replacingOccurrences(of: "\n", with: ending.characters)
+            guard let data = output.data(using: encoding) ?? output.data(using: .utf8),
+                  (try? data.write(to: url, options: .atomic)) != nil else { return }
+            DispatchQueue.main.async {
+                guard let self, self.editEpoch == epoch else { return }
+                self.isDirty = false
+            }
+        }
     }
 
     func save(to url: URL) throws {

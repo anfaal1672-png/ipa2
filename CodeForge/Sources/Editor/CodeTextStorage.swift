@@ -98,7 +98,7 @@ final class CodeTextStorage: NSTextStorage {
     }
 
     private func rebuildLineIndex() {
-        let ns = backing.string as NSString
+        let ns = nsString
         var starts: [Int] = [0]
         starts.reserveCapacity(ns.length / 30 + 8)
         starts.append(contentsOf: Self.newlineOffsets(in: ns,
@@ -140,7 +140,7 @@ final class CodeTextStorage: NSTextStorage {
     /// the edit is untouched, the edited span is rescanned, and the tail is
     /// shifted by the length delta.
     private func updateLineIndex(editedRange: NSRange, delta: Int) {
-        let ns = backing.string as NSString
+        let ns = nsString
         let oldEnd = editedRange.location + (editedRange.length - delta)
 
         guard editedRange.location >= 0, oldEnd >= editedRange.location,
@@ -185,6 +185,16 @@ final class CodeTextStorage: NSTextStorage {
     // MARK: - NSTextStorage primitives
 
     override var string: String { backing.string }
+
+    /// The buffer as `NSString`, with no copy and no Swift-String bridging.
+    ///
+    /// `UITextView.text` and `NSTextStorage.string` both hand back a Swift
+    /// `String` built from the whole document; bridging it back with
+    /// `as NSString` can transcode the entire buffer. Doing that per keystroke
+    /// and per draw is what made a large file heavy *everywhere*, not just
+    /// while scrolling. `mutableString` is the live backing store, so reading
+    /// through it is O(1).
+    var nsString: NSString { backing.mutableString }
 
     override func attributes(at location: Int,
                              effectiveRange range: NSRangePointer?) -> [NSAttributedString.Key: Any] {
@@ -256,7 +266,7 @@ final class CodeTextStorage: NSTextStorage {
         let visible = visibleRangeProvider?() ?? NSRange(location: 0, length: min(total, 20_000))
         let start = max(0, visible.location - contextWindow)
         let end = min(total, NSMaxRange(visible) + visiblePadding)
-        let ns = backing.string as NSString
+        let ns = nsString
 
         // Snap to line boundaries so line-anchored regex rules still match.
         let snappedStart = start > 0 ? ns.paragraphRange(for: NSRange(location: start, length: 0)).location : 0
@@ -270,32 +280,35 @@ final class CodeTextStorage: NSTextStorage {
             return
         }
 
-        let window = highlightWindow()
-        guard window.length > 0 else { return }
+        guard highlightWindow().length > 0 else { return }
 
-        // Only the window is copied out, so the cost of a pass is bounded by
-        // what is on screen rather than by the size of the file.
-        let chunk = (backing.string as NSString).substring(with: window)
-        let currentVersion = version
+        // The window is copied out *after* the debounce, not before it. Copying
+        // it up front meant every keystroke allocated tens of kilobytes on the
+        // main thread only for the next keystroke to cancel the work item that
+        // was going to read it.
         let localScanner = scanner
-        let offset = window.location
-
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            let tokens = localScanner.tokenize(chunk)
-            DispatchQueue.main.async {
-                guard self.version == currentVersion else { return }
-                self.beginEditing()
-                self.applyTokens(tokens, offset: offset, in: window)
-                self.endEditing()
-                self.lastHighlightedWindow = window
+            let window = self.highlightWindow()
+            guard window.length > 0 else { return }
+            let chunk = self.nsString.substring(with: window)
+            let currentVersion = self.version
+            self.queue.async {
+                let tokens = localScanner.tokenize(chunk)
+                DispatchQueue.main.async {
+                    guard self.version == currentVersion else { return }
+                    self.beginEditing()
+                    self.applyTokens(tokens, offset: window.location, in: window)
+                    self.endEditing()
+                    self.lastHighlightedWindow = window
+                }
             }
         }
         pendingWorkItem = work
         // Larger documents get a longer debounce: a burst of typing should not
         // queue a scan per keystroke.
         let delay = immediate ? 0.0 : (length > wholeDocumentLimit ? 0.18 : 0.06)
-        queue.asyncAfter(deadline: .now() + delay, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     /// Synchronous, small-range pass used while typing.
@@ -303,7 +316,7 @@ final class CodeTextStorage: NSTextStorage {
         guard syntaxHighlightingEnabled, language.flavor != .plain else { return }
         let clamped = NSIntersectionRange(range, NSRange(location: 0, length: length))
         guard clamped.length > 0, clamped.length < 200_000 else { return }
-        let chunk = (backing.string as NSString).substring(with: clamped)
+        let chunk = nsString.substring(with: clamped)
         applyTokens(scanner.tokenize(chunk), offset: clamped.location, in: clamped)
     }
 
@@ -355,7 +368,7 @@ final class CodeTextStorage: NSTextStorage {
     /// Expands a range to whole paragraphs plus one line either side, so short
     /// multi-line constructs recolour immediately rather than on the async pass.
     private func paragraphRange(for range: NSRange) -> NSRange {
-        let ns = backing.string as NSString
+        let ns = nsString
         guard ns.length > 0 else { return NSRange(location: 0, length: 0) }
         let location = min(range.location, ns.length)
         let safe = NSRange(location: location, length: min(range.length, ns.length - location))

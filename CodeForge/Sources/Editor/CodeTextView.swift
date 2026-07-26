@@ -249,6 +249,10 @@ final class CodeTextView: UITextView {
 
     var numberOfLines: Int { codeStorage.lineCount }
 
+    /// The document as `NSString` without the whole-buffer copy that
+    /// `UITextView.text` performs. Every hot path uses this.
+    var textNS: NSString { codeStorage.nsString }
+
     /// Characters currently laid out inside the viewport, with a screen of
     /// slack either side.
     func visibleCharacterRange() -> NSRange {
@@ -287,7 +291,7 @@ final class CodeTextView: UITextView {
         }
 
         if highlightCurrentLine && isFirstResponder {
-            let ns = text as NSString
+            let ns = textNS
             let currentLineRange = ns.length > 0
                 ? ns.paragraphRange(for: NSRange(location: min(selectedRange.location, ns.length), length: 0))
                 : NSRange(location: 0, length: 0)
@@ -310,7 +314,7 @@ final class CodeTextView: UITextView {
     }
 
     private func drawIndentGuides(context: CGContext, layoutManager: NSLayoutManager, dirtyRect: CGRect) {
-        let ns = text as NSString
+        let ns = textNS
         guard ns.length > 0 else { return }
         let charWidth = ("0" as NSString).size(withAttributes: [.font: codeFont]).width
         guard charWidth > 0 else { return }
@@ -362,12 +366,48 @@ final class CodeTextView: UITextView {
     override var selectedTextRange: UITextRange? {
         didSet {
             gutter.setNeedsDisplay()
-            if highlightCurrentLine { setNeedsDisplay() }
+            invalidateCurrentLineHighlight()
         }
     }
 
+    private var lastCurrentLineRect: CGRect = .null
+
+    /// Repaints the band the current-line highlight moved between, instead of
+    /// the whole viewport. The caret moves on every keystroke and every tap, and
+    /// a full invalidation makes TextKit re-draw every glyph on screen.
+    private func invalidateCurrentLineHighlight() {
+        guard highlightCurrentLine else { return }
+        let updated = currentLineRect()
+        var dirty = lastCurrentLineRect
+        if let updated { dirty = dirty.isNull ? updated : dirty.union(updated) }
+        lastCurrentLineRect = updated ?? .null
+
+        if dirty.isNull {
+            setNeedsDisplay()
+        } else {
+            setNeedsDisplay(dirty.insetBy(dx: 0, dy: -2))
+        }
+    }
+
+    /// Rect of the line holding the caret, in this view's (content) coordinates.
+    private func currentLineRect() -> CGRect? {
+        guard let layoutManager = textContainer.layoutManager else { return nil }
+        let ns = textNS
+        guard ns.length > 0 else { return nil }
+        let paragraph = ns.paragraphRange(
+            for: NSRange(location: min(selectedRange.location, ns.length), length: 0))
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: paragraph,
+                                                  actualCharacterRange: nil)
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        guard !rect.isEmpty else { return nil }
+        rect.origin.y += textContainerInset.top
+        rect.origin.x = bounds.origin.x
+        rect.size.width = max(bounds.width, contentSize.width)
+        return rect
+    }
+
     var currentLineRange: NSRange {
-        let ns = text as NSString
+        let ns = textNS
         guard ns.length > 0 else { return NSRange(location: 0, length: 0) }
         return ns.paragraphRange(for: NSRange(location: min(selectedRange.location, ns.length), length: 0))
     }

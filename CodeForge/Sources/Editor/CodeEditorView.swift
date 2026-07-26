@@ -116,7 +116,7 @@ final class EditorProxy: ObservableObject {
 
     func duplicateLine() {
         guard let textView else { return }
-        let ns = textView.text as NSString
+        let ns = textView.textNS
         let range = ns.paragraphRange(for: textView.selectedRange)
         let line = ns.substring(with: range)
         let insertion = line.hasSuffix("\n") ? line : "\n" + line
@@ -126,7 +126,7 @@ final class EditorProxy: ObservableObject {
 
     func deleteLine() {
         guard let textView else { return }
-        let ns = textView.text as NSString
+        let ns = textView.textNS
         let range = ns.paragraphRange(for: textView.selectedRange)
         guard range.length > 0, let textRange = textView.textRange(from: range) else { return }
         textView.replace(textRange, withText: "")
@@ -142,14 +142,14 @@ final class EditorProxy: ObservableObject {
 
     private func forEachSelectedLine(_ body: (String) -> Void) {
         guard let textView else { return }
-        let ns = textView.text as NSString
+        let ns = textView.textNS
         let range = ns.paragraphRange(for: textView.selectedRange)
         ns.substring(with: range).components(separatedBy: "\n").forEach(body)
     }
 
     private func transformSelectedLines(_ transform: (String) -> String) {
         guard let textView else { return }
-        let ns = textView.text as NSString
+        let ns = textView.textNS
         let paragraph = ns.paragraphRange(for: textView.selectedRange)
         guard paragraph.length >= 0, let textRange = textView.textRange(from: paragraph) else { return }
         let original = ns.substring(with: paragraph)
@@ -183,7 +183,7 @@ final class EditorProxy: ObservableObject {
 
         lastQuery = query
         lastOptions = options
-        let text = textView.codeStorage.string as NSString
+        let text = textView.codeStorage.nsString
 
         // Immediate: jump to the first match at or after the caret. One search,
         // and it stops as soon as it finds something.
@@ -246,7 +246,7 @@ final class EditorProxy: ObservableObject {
         // Otherwise search outward from the selection, which does not depend on
         // the size of the document.
         guard let query = lastQuery, !query.isEmpty else { return }
-        let text = textView.codeStorage.string as NSString
+        let text = textView.codeStorage.nsString
         let selection = textView.selectedRange
         let origin = forward ? NSMaxRange(selection) : selection.location
         if let next = Self.match(of: query, in: text, from: origin,
@@ -278,7 +278,7 @@ final class EditorProxy: ObservableObject {
 
     func replaceAll(with replacement: String, query: String, options: FindOptions) {
         guard let textView, !query.isEmpty else { return }
-        let ranges = Self.ranges(of: query, in: textView.codeStorage.string as NSString,
+        let ranges = Self.ranges(of: query, in: textView.codeStorage.nsString,
                                  options: options)
         guard !ranges.isEmpty else { return }
         let ns = NSMutableString(string: textView.codeStorage.string)
@@ -464,7 +464,7 @@ struct CodeEditorView: UIViewRepresentable {
             context.coordinator.isApplyingExternalChange = true
             textView.text = document.text
             textView.selectedRange = NSRange(location: min(document.selectedRange.location,
-                                                           (document.text as NSString).length), length: 0)
+                                                           storage.length), length: 0)
             context.coordinator.isApplyingExternalChange = false
             storage.documentDidChangeWholesale()
             textView.refreshGutter()
@@ -474,7 +474,7 @@ struct CodeEditorView: UIViewRepresentable {
             let selection = textView.selectedRange
             textView.text = document.text
             textView.selectedRange = NSRange(location: min(selection.location,
-                                                           (document.text as NSString).length), length: 0)
+                                                           storage.length), length: 0)
             context.coordinator.isApplyingExternalChange = false
             storage.documentDidChangeWholesale()
             textView.refreshGutter()
@@ -553,7 +553,7 @@ struct CodeEditorView: UIViewRepresentable {
 
         func syncTextNow() {
             guard let textView else { return }
-            document.syncFromEditor(text: textView.text, lineCount: textView.numberOfLines)
+            document.syncFromEditor(text: textView.codeStorage.string, lineCount: textView.numberOfLines)
             scheduleAutoSave()
         }
 
@@ -571,7 +571,7 @@ struct CodeEditorView: UIViewRepresentable {
             isEditing = false
             textView.setNeedsDisplay()
             syncTextNow()
-            if settings.autoSave { try? document.save() }
+            if settings.autoSave { document.autosave() }
         }
 
         /// Scrolling repaints the gutter (a narrow view) and asks the storage
@@ -585,7 +585,7 @@ struct CodeEditorView: UIViewRepresentable {
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange,
                       replacementText text: String) -> Bool {
             let language = document.language
-            let ns = textView.text as NSString
+            let ns = textView.textNS
 
             // Return: copy the current line's indentation, add one level after an opener.
             if text == "\n", settings.autoIndent {
@@ -688,8 +688,9 @@ struct CodeEditorView: UIViewRepresentable {
             saveWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 guard let self, let textView = self.textView else { return }
-                self.document.syncFromEditor(text: textView.text, lineCount: textView.numberOfLines)
-                try? self.document.save()
+                self.document.syncFromEditor(text: textView.codeStorage.string,
+                                             lineCount: textView.numberOfLines)
+                self.document.autosave()
             }
             saveWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
@@ -726,7 +727,7 @@ struct CodeEditorView: UIViewRepresentable {
 
         func toolbarDidMoveCaret(by offset: Int) {
             guard let textView else { return }
-            let length = (textView.text as NSString).length
+            let length = textView.textNS.length
             let location = max(0, min(length, textView.selectedRange.location + offset))
             textView.selectedRange = NSRange(location: location, length: 0)
         }
