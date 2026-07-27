@@ -175,11 +175,12 @@ final class CodeTextStorage: NSTextStorage {
         // way as a full rebuild.
         let inserted = Self.newlineOffsets(in: ns, range: editedRange)
 
-        var tail = Array(lineStarts[last...])
+        // Spliced in place: building three arrays and concatenating them
+        // allocated a fresh copy of the whole index on every keystroke.
         if delta != 0 {
-            for i in 0..<tail.count { tail[i] += delta }
+            for i in last..<lineStarts.count { lineStarts[i] += delta }
         }
-        lineStarts = Array(lineStarts[..<first]) + inserted + tail
+        lineStarts.replaceSubrange(first..<last, with: inserted)
     }
 
     // MARK: - NSTextStorage primitives
@@ -297,9 +298,16 @@ final class CodeTextStorage: NSTextStorage {
                 let tokens = localScanner.tokenize(chunk)
                 DispatchQueue.main.async {
                     guard self.version == currentVersion else { return }
-                    self.beginEditing()
-                    self.applyTokens(tokens, offset: window.location, in: window)
-                    self.endEditing()
+                    if self.isUsingWindowedHighlighting {
+                        // Colours only, and no edit notification: see
+                        // `applyTokens`.
+                        self.applyTokens(tokens, offset: window.location, in: window,
+                                         displayOnly: true)
+                    } else {
+                        self.beginEditing()
+                        self.applyTokens(tokens, offset: window.location, in: window)
+                        self.endEditing()
+                    }
                     self.lastHighlightedWindow = window
                 }
             }
@@ -320,7 +328,18 @@ final class CodeTextStorage: NSTextStorage {
         applyTokens(scanner.tokenize(chunk), offset: clamped.location, in: clamped)
     }
 
-    private func applyTokens(_ tokens: [Token], offset: Int, in range: NSRange) {
+    /// Paints one window of tokens.
+    ///
+    /// `displayOnly` is the difference between a smooth scroll and a stuttering
+    /// one on a large document. Reporting an attribute edit makes every layout
+    /// manager discard the layout for the whole window and compute it again,
+    /// which happens each time scrolling settles. A colour cannot move a glyph,
+    /// so the window is repainted instead — and to keep that promise, the font
+    /// substitutions (italic comments, bold headings) are skipped in this mode,
+    /// since those *can* change metrics. Small documents, which are highlighted
+    /// whole and cheaply, keep the full treatment.
+    private func applyTokens(_ tokens: [Token], offset: Int, in range: NSRange,
+                             displayOnly: Bool = false) {
         let bounds = NSRange(location: 0, length: length)
         let target = NSIntersectionRange(range, bounds)
         guard target.length > 0 else { return }
@@ -333,9 +352,9 @@ final class CodeTextStorage: NSTextStorage {
             var attrs: [NSAttributedString.Key: Any] = [.foregroundColor: theme.color(for: token.type)]
             switch token.type {
             case .comment, .docComment, .emphasis:
-                attrs[.font] = italic(font)
+                if !displayOnly { attrs[.font] = italic(font) }
             case .strong, .heading:
-                attrs[.font] = bold(font)
+                if !displayOnly { attrs[.font] = bold(font) }
             case .link:
                 attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
             default:
@@ -343,7 +362,14 @@ final class CodeTextStorage: NSTextStorage {
             }
             backing.addAttributes(attrs, range: r)
         }
-        edited(.editedAttributes, range: target, changeInLength: 0)
+
+        if displayOnly {
+            for manager in layoutManagers {
+                manager.invalidateDisplay(forCharacterRange: target)
+            }
+        } else {
+            edited(.editedAttributes, range: target, changeInLength: 0)
+        }
     }
 
     private var italicCache: [CGFloat: UIFont] = [:]

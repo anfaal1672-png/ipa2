@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Headless checks the app can run at launch, so CI verifies the machinery the
 /// preview depends on instead of only checking that the app opens.
@@ -141,6 +142,55 @@ enum SelfTest {
             let patched = storage.lineStarts
             storage.documentDidChangeWholesale()
             check("incremental index matches a full rebuild", patched == storage.lineStarts)
+
+            // --- a real text view, driven the way a person drives it ----------
+            //
+            // The checks above all run against the storage. A build shipped
+            // where 2,800 lines was enough to hang the app, because the cost
+            // was in the *view*: the caret setter forced glyph layout from
+            // inside UIKit's own text processing. So the editor is exercised
+            // end to end here — layout, caret moves down the file, scrolling
+            // and a full repaint — against a wall-clock budget.
+            let stressLines = 3_000
+            let stressBody = (0..<stressLines).map { index in
+                switch index % 4 {
+                case 0: return "    // step \(index): explain what happens next"
+                case 1: return "    let value\(index) = compute(\"text \(index)\", index: \(index))"
+                case 2: return "    if value\(index) > 0 { total += value\(index) }"
+                default: return ""
+                }
+            }.joined(separator: "\n")
+
+            var stressSeconds = 0.0
+            var stressPainted = false
+            DispatchQueue.main.sync {
+                let liveStorage = CodeTextStorage()
+                liveStorage.language = LanguageRegistry.shared.language(forFilename: "main.swift")
+                let view = CodeTextView(textStorage: liveStorage)
+                view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+                view.text = stressBody
+                liveStorage.documentDidChangeWholesale()
+                view.refreshGutter()
+                view.layoutIfNeeded()
+
+                let began = Date()
+                for line in stride(from: 1, through: stressLines, by: 50) {
+                    view.selectedRange = NSRange(location: liveStorage.startOfLine(line), length: 0)
+                    view.scrollRangeToVisible(view.selectedRange)
+                    view.viewportDidChange()
+                    view.layoutIfNeeded()
+                }
+                stressSeconds = Date().timeIntervalSince(began)
+
+                // Forces draw(_:), so the current-line highlight and the indent
+                // guides are covered too.
+                let renderer = UIGraphicsImageRenderer(size: view.bounds.size)
+                let image = renderer.image { context in view.layer.render(in: context.cgContext) }
+                stressPainted = image.size.width > 0
+            }
+            check("caret and scroll over \(stressLines) lines took \(String(format: "%.2f", stressSeconds))s",
+                  stressSeconds < 8.0)
+            check("the editor paints", stressPainted)
 
             if failures.isEmpty {
                 NSLog("SELFTEST RESULT pass (%d checks)", passed)

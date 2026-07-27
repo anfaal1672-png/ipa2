@@ -313,10 +313,21 @@ final class CodeTextView: UITextView {
         super.draw(rect)
     }
 
+    private var cachedCharWidth: (font: UIFont, width: CGFloat)?
+
+    /// Advance width of one character, measured once per font rather than on
+    /// every repaint.
+    private var characterWidth: CGFloat {
+        if let cachedCharWidth, cachedCharWidth.font == codeFont { return cachedCharWidth.width }
+        let width = ("0" as NSString).size(withAttributes: [.font: codeFont]).width
+        cachedCharWidth = (codeFont, width)
+        return width
+    }
+
     private func drawIndentGuides(context: CGContext, layoutManager: NSLayoutManager, dirtyRect: CGRect) {
         let ns = textNS
         guard ns.length > 0 else { return }
-        let charWidth = ("0" as NSString).size(withAttributes: [.font: codeFont]).width
+        let charWidth = characterWidth
         guard charWidth > 0 else { return }
 
         context.setStrokeColor(theme.indentGuide.cgColor)
@@ -370,40 +381,30 @@ final class CodeTextView: UITextView {
         }
     }
 
-    private var lastCurrentLineRect: CGRect = .null
+    private var lastCurrentLineStart = -1
 
-    /// Repaints the band the current-line highlight moved between, instead of
-    /// the whole viewport. The caret moves on every keystroke and every tap, and
-    /// a full invalidation makes TextKit re-draw every glyph on screen.
+    /// Repaints the current-line highlight only when the caret actually moves to
+    /// a different line, decided from the storage's line index — a binary
+    /// search, no layout.
+    ///
+    /// Asking the layout manager for the line's rect here looked like a cheaper
+    /// invalidation, but UIKit assigns this property from inside its own text
+    /// processing: forcing glyph layout at that moment re-enters the layout
+    /// manager, and with non-contiguous layout on a long document that meant
+    /// laying out everything above the caret — from a setter that fires on every
+    /// keystroke. Slow at best, and re-entrant at worst.
     private func invalidateCurrentLineHighlight() {
-        guard highlightCurrentLine else { return }
-        let updated = currentLineRect()
-        var dirty = lastCurrentLineRect
-        if let updated { dirty = dirty.isNull ? updated : dirty.union(updated) }
-        lastCurrentLineRect = updated ?? .null
-
-        if dirty.isNull {
-            setNeedsDisplay()
-        } else {
-            setNeedsDisplay(dirty.insetBy(dx: 0, dy: -2))
+        guard highlightCurrentLine else {
+            lastCurrentLineStart = -1
+            return
         }
-    }
-
-    /// Rect of the line holding the caret, in this view's (content) coordinates.
-    private func currentLineRect() -> CGRect? {
-        guard let layoutManager = textContainer.layoutManager else { return nil }
-        let ns = textNS
-        guard ns.length > 0 else { return nil }
-        let paragraph = ns.paragraphRange(
-            for: NSRange(location: min(selectedRange.location, ns.length), length: 0))
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: paragraph,
-                                                  actualCharacterRange: nil)
-        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        guard !rect.isEmpty else { return nil }
-        rect.origin.y += textContainerInset.top
-        rect.origin.x = bounds.origin.x
-        rect.size.width = max(bounds.width, contentSize.width)
-        return rect
+        let location = min(selectedRange.location, codeStorage.length)
+        let start = codeStorage.startOfLine(codeStorage.lineNumber(at: location))
+        guard start != lastCurrentLineStart else { return }
+        lastCurrentLineStart = start
+        // The highlight spans the full width, so only a move between lines
+        // changes what is painted.
+        setNeedsDisplay()
     }
 
     var currentLineRange: NSRange {
