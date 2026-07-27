@@ -151,7 +151,7 @@ enum SelfTest {
             // inside UIKit's own text processing. So the editor is exercised
             // end to end here — layout, caret moves down the file, scrolling
             // and a full repaint — against a wall-clock budget.
-            func body(lines: Int) -> String {
+            func makeBody(lines: Int) -> String {
                 (0..<lines).map { index in
                     switch index % 4 {
                     case 0: return "    // step \(index): explain what happens next"
@@ -162,7 +162,7 @@ enum SelfTest {
                 }.joined(separator: "\n")
             }
             let stressLines = 3_000
-            let stressBody = body(lines: stressLines)
+            let stressBody = makeBody(lines: stressLines)
 
             // The first run of this measured 79 ms to scroll one screen, which
             // is five frames' worth of budget for one step, and turning
@@ -178,7 +178,7 @@ enum SelfTest {
             /// Scrolls forward a screen at a time and returns milliseconds per step.
             func scrollCost(lines: Int, chrome: Bool, highlighting: Bool,
                             plainTextView: Bool) -> Double {
-                let text = lines == stressLines ? stressBody : body(lines: lines)
+                let text = lines == stressLines ? stressBody : makeBody(lines: lines)
                 let steps = 40
                 let view: UITextView
 
@@ -204,7 +204,7 @@ enum SelfTest {
                     storage.documentDidChangeWholesale()
                     view = code
                 }
-                view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+                view.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
                 if plainTextView { view.text = text }
                 view.layoutIfNeeded()
 
@@ -223,7 +223,7 @@ enum SelfTest {
                 let liveStorage = CodeTextStorage()
                 liveStorage.language = LanguageRegistry.shared.language(forFilename: "main.swift")
                 let view = CodeTextView(textStorage: liveStorage)
-                view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+                view.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
 
                 var began = Date()
                 view.text = stressBody

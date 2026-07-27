@@ -12,7 +12,7 @@ set -euo pipefail
 
 APP_PATH="${1:?usage: smoke_test.sh <CodeForge.app>}"
 BUNDLE_ID="com.codeforge.editor"
-DEVICE_NAME="${SMOKE_DEVICE:-iPhone 16}"
+DEVICE_NAME="${SMOKE_DEVICE:-iPhone 17}"
 
 echo "==> Booting simulator: $DEVICE_NAME"
 DEVICE_ID=$(xcrun simctl list devices available -j \
