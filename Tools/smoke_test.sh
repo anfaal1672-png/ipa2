@@ -20,15 +20,21 @@ DEVICE_ID=$(xcrun simctl list devices available -j \
 import json, sys
 data = json.load(sys.stdin)['devices']
 name = '$DEVICE_NAME'
-fallback = None
+# The runner's Xcode decides which simulators exist, and it lags behind the
+# newest hardware — so prefer the requested device, then any other iPhone, and
+# only then whatever is left.
+phone = None
+anything = None
 for runtime, devices in data.items():
     if 'iOS' not in runtime:
         continue
     for device in devices:
         if device['name'] == name:
             print(device['udid']); raise SystemExit
-        fallback = fallback or device['udid']
-print(fallback or '')
+        if phone is None and device['name'].startswith('iPhone'):
+            phone = device['udid']
+        anything = anything or device['udid']
+print(phone or anything or '')
 ")
 
 if [ -z "$DEVICE_ID" ]; then

@@ -187,7 +187,7 @@ enum SelfTest {
                     let manager = NSLayoutManager()
                     manager.allowsNonContiguousLayout = true
                     let container = NSTextContainer(size: CGSize(width: 0,
-                                                                 height: .greatestFiniteMagnitude))
+                                                                 height: CGFloat.greatestFiniteMagnitude))
                     container.widthTracksTextView = true
                     manager.addTextContainer(container)
                     storage.addLayoutManager(manager)
