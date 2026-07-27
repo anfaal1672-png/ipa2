@@ -130,12 +130,13 @@ final class CodeTextView: UITextView {
 
     // MARK: - Init
 
-    init(textStorage: CodeTextStorage) {
+    init(textStorage: CodeTextStorage, nonContiguousLayout: Bool = true) {
         self.codeStorage = textStorage
         let layoutManager = NSLayoutManager()
         // Non-contiguous layout is what keeps opening and scrolling a large
         // file fast: TextKit lays out what is visible instead of everything.
-        layoutManager.allowsNonContiguousLayout = true
+        // Overridable so the self test can measure both settings.
+        layoutManager.allowsNonContiguousLayout = nonContiguousLayout
         let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
         layoutManager.addTextContainer(container)
@@ -231,7 +232,9 @@ final class CodeTextView: UITextView {
         let frame = CGRect(x: contentOffset.x, y: contentOffset.y,
                            width: gutterWidth - 6, height: bounds.height)
         if gutter.frame != frame { gutter.frame = frame }
-        bringSubviewToFront(gutter)
+        // Reordering subviews invalidates the text view's layout, and this runs
+        // on every scroll event — so only when it is actually out of order.
+        if subviews.last !== gutter { bringSubviewToFront(gutter) }
     }
 
     /// Called from the scroll delegate. Only the gutter is repainted — the

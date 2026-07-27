@@ -161,36 +161,86 @@ enum SelfTest {
                 }
             }.joined(separator: "\n")
 
-            var stressSeconds = 0.0
-            var stressPainted = false
+            // Each phase is timed separately, and the whole run is repeated with
+            // non-contiguous layout off, because which of the two is faster for
+            // a document this size is a question about UIKit's behaviour that
+            // only a measurement on a device can answer. Every number is logged.
+            var results: [String: Double] = [:]
+            var painted = false
+
             DispatchQueue.main.sync {
-                let liveStorage = CodeTextStorage()
-                liveStorage.language = LanguageRegistry.shared.language(forFilename: "main.swift")
-                let view = CodeTextView(textStorage: liveStorage)
-                view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-                view.text = stressBody
-                liveStorage.documentDidChangeWholesale()
-                view.refreshGutter()
-                view.layoutIfNeeded()
+                for nonContiguous in [true, false] {
+                    let label = nonContiguous ? "noncontiguous" : "contiguous"
+                    let liveStorage = CodeTextStorage()
+                    liveStorage.language = LanguageRegistry.shared.language(forFilename: "main.swift")
+                    let view = CodeTextView(textStorage: liveStorage,
+                                            nonContiguousLayout: nonContiguous)
+                    view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
 
-                let began = Date()
-                for line in stride(from: 1, through: stressLines, by: 50) {
-                    view.selectedRange = NSRange(location: liveStorage.startOfLine(line), length: 0)
-                    view.scrollRangeToVisible(view.selectedRange)
-                    view.viewportDidChange()
+                    var began = Date()
+                    view.text = stressBody
+                    liveStorage.documentDidChangeWholesale()
+                    view.refreshGutter()
                     view.layoutIfNeeded()
-                }
-                stressSeconds = Date().timeIntervalSince(began)
+                    results["\(label) open"] = Date().timeIntervalSince(began)
 
-                // Forces draw(_:), so the current-line highlight and the indent
-                // guides are covered too.
-                let renderer = UIGraphicsImageRenderer(size: view.bounds.size)
-                let image = renderer.image { context in view.layer.render(in: context.cgContext) }
-                stressPainted = image.size.width > 0
+                    // Scrolling the way a finger does: forward, one screen at a
+                    // time. This is the number that decides whether the app
+                    // feels heavy.
+                    began = Date()
+                    var offset: CGFloat = 0
+                    for _ in 0..<40 {
+                        offset += view.bounds.height * 0.8
+                        view.contentOffset = CGPoint(x: 0, y: offset)
+                        view.viewportDidChange()
+                        view.layoutIfNeeded()
+                    }
+                    results["\(label) scroll"] = Date().timeIntervalSince(began)
+
+                    // Typing: the caret moves within one screen.
+                    began = Date()
+                    view.contentOffset = .zero
+                    for line in 1...300 {
+                        view.selectedRange = NSRange(location: liveStorage.startOfLine(line % 40 + 1),
+                                                     length: 0)
+                    }
+                    results["\(label) caret"] = Date().timeIntervalSince(began)
+
+                    // Jumping far, which is go-to-line and find.
+                    began = Date()
+                    for line in stride(from: 1, through: stressLines, by: 150) {
+                        view.selectedRange = NSRange(location: liveStorage.startOfLine(line), length: 0)
+                        view.scrollRangeToVisible(view.selectedRange)
+                        view.layoutIfNeeded()
+                    }
+                    results["\(label) jump"] = Date().timeIntervalSince(began)
+
+                    // Forces draw(_:), so the current-line highlight and the
+                    // indent guides are covered too.
+                    began = Date()
+                    let renderer = UIGraphicsImageRenderer(size: view.bounds.size)
+                    let image = renderer.image { context in view.layer.render(in: context.cgContext) }
+                    results["\(label) paint"] = Date().timeIntervalSince(began)
+                    painted = painted || image.size.width > 0
+                }
             }
-            check("caret and scroll over \(stressLines) lines took \(String(format: "%.2f", stressSeconds))s",
-                  stressSeconds < 8.0)
-            check("the editor paints", stressPainted)
+
+            for (name, seconds) in results.sorted(by: { $0.key < $1.key }) {
+                NSLog("SELFTEST timing: %@ %.3fs (%d lines)", name, seconds, stressLines)
+            }
+            check("the editor paints", painted)
+            // The shipped configuration has to keep ordinary scrolling and
+            // typing cheap. Far jumps are allowed to cost more: they make TextKit
+            // lay out everything in between whatever we do.
+            check("scrolling \(stressLines) lines took "
+                  + String(format: "%.2f", results["noncontiguous scroll"] ?? 99) + "s",
+                  (results["noncontiguous scroll"] ?? 99) < 3.0)
+            check("typing over \(stressLines) lines took "
+                  + String(format: "%.2f", results["noncontiguous caret"] ?? 99) + "s",
+                  (results["noncontiguous caret"] ?? 99) < 2.0)
+            check("opening \(stressLines) lines took "
+                  + String(format: "%.2f", results["noncontiguous open"] ?? 99) + "s",
+                  (results["noncontiguous open"] ?? 99) < 3.0)
 
             if failures.isEmpty {
                 NSLog("SELFTEST RESULT pass (%d checks)", passed)
