@@ -85,7 +85,11 @@ struct ContentView: View {
             }
             .environmentObject(settings)
         }
-        .sheet(isPresented: $showPreview) {
+        // A cover rather than a sheet: a sheet keeps a card inset at the top, so
+        // the preview's full-screen mode could never actually reach the edge of
+        // the display. "Done" is always in the bar, and full screen leaves a
+        // floating exit button, so nothing here is a one-way door.
+        .fullScreenCover(isPresented: $showPreview) {
             if let document = workspace.activeDocument {
                 PreviewView(document: document, theme: theme)
                     .environmentObject(settings)

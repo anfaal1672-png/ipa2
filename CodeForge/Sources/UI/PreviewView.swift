@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WebKit
 
 /// What the preview does with a given file.
@@ -77,6 +78,14 @@ struct PreviewView: View {
     @State private var pageTitle = ""
     @State private var request: PreviewRequest?
 
+    /// Full screen hands the whole display to the page: no navigation bar, no
+    /// status bar, no runtime strip. The only chrome left is a small floating
+    /// bar that dims itself once the page has settled, and comes back on a tap.
+    @State private var isFullScreen = false
+    @State private var controlsAreDimmed = false
+    @State private var showFullScreenHint = false
+    @State private var dimTask: Task<Void, Never>?
+
     private var kind: PreviewKind { PreviewKind.kind(for: document.language) }
     private var errorCount: Int { messages.filter { $0.level == "error" }.count }
 
@@ -87,45 +96,59 @@ struct PreviewView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                if kind == .unsupported {
-                    unsupportedState
-                } else if let request {
-                    WebPreview(request: request,
-                               reloadToken: reloadToken,
-                               onConsole: { message in
-                                   messages.append(message)
-                                   // A page that renders wrong because a
-                                   // script died is worse than useless if the
-                                   // reason stays hidden behind a button.
-                                   if message.level == "error" && !showConsole {
-                                       showConsole = true
-                                   }
-                               },
-                               onLoadingChange: { isLoading = $0 },
-                               onTitleChange: { pageTitle = $0 })
-                        .background(Color(theme.background))
-                } else {
-                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 0) {
+                    if kind == .unsupported {
+                        unsupportedState
+                    } else if let request {
+                        WebPreview(request: request,
+                                   reloadToken: reloadToken,
+                                   onConsole: { message in
+                                       messages.append(message)
+                                       // A page that renders wrong because a
+                                       // script died is worse than useless if the
+                                       // reason stays hidden behind a button.
+                                       // In full screen the floating bar shows a
+                                       // red dot instead, so the page is not
+                                       // shoved aside by a panel.
+                                       if message.level == "error" && !showConsole && !isFullScreen {
+                                           showConsole = true
+                                       }
+                                   },
+                                   onLoadingChange: { isLoading = $0 },
+                                   onTitleChange: { pageTitle = $0 },
+                                   onInteraction: { wakeControls() })
+                            .background(Color(theme.background))
+                    } else {
+                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+
+                    if let runtimeName, kind != .unsupported, !isFullScreen {
+                        Text(runtimeName)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(Color(theme.gutterForeground))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 4)
+                            .background(Color(theme.gutterBackground))
+                    }
+
+                    if showConsole {
+                        Divider()
+                        consolePanel
+                    }
                 }
 
-                if let runtimeName, kind != .unsupported {
-                    Text(runtimeName)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(Color(theme.gutterForeground))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 4)
-                        .background(Color(theme.gutterBackground))
-                }
-
-                if showConsole {
-                    Divider()
-                    consolePanel
+                if isFullScreen {
+                    floatingControls
+                        .padding(.top, 10)
+                        .padding(.trailing, 14)
                 }
             }
+            .ignoresSafeArea(edges: isFullScreen ? .all : [])
             .navigationTitle(pageTitle.isEmpty ? document.name : pageTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(isFullScreen ? .hidden : .visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L("Done")) { dismiss() }
@@ -156,8 +179,17 @@ struct PreviewView: View {
                     }
                     .accessibilityLabel(L("Console"))
 
+                    Button { enterFullScreen() } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    }
+                    .accessibilityLabel(L("Full screen"))
+
                     Menu {
                         Toggle(L("Reload when the file changes"), isOn: $autoRefresh)
+                        Button { enterFullScreen() } label: {
+                            Label(L("Full screen"),
+                                  systemImage: "arrow.up.left.and.arrow.down.right")
+                        }
                         Button {
                             messages.removeAll()
                         } label: { Label(L("Clear console"), systemImage: "trash") }
@@ -166,13 +198,100 @@ struct PreviewView: View {
                     }
                 }
             }
+            .overlay(alignment: .bottom) {
+                if showFullScreenHint {
+                    Text(L("Tap the screen to show the buttons again"))
+                        .font(.footnote)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.bottom, 40)
+                        .transition(.opacity)
+                }
+            }
+            .statusBarHidden(isFullScreen)
             .onAppear { rebuild() }
-            .onDisappear { PreviewWorkspace.shared.cleanUp() }
+            .onDisappear {
+                dimTask?.cancel()
+                PreviewWorkspace.shared.cleanUp()
+            }
             .onChange(of: document.revision) { _ in
                 guard autoRefresh else { return }
                 rebuild()
                 reloadToken += 1
             }
+        }
+    }
+
+    // MARK: - Full screen
+
+    private var floatingControls: some View {
+        HStack(spacing: 16) {
+            Button {
+                messages.removeAll()
+                rebuild()
+                reloadToken += 1
+                wakeControls()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .accessibilityLabel(L("Reload"))
+
+            Button {
+                showConsole.toggle()
+                wakeControls()
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "terminal")
+                    if errorCount > 0 {
+                        Circle().fill(Color.red).frame(width: 7, height: 7).offset(x: 5, y: -3)
+                    }
+                }
+            }
+            .accessibilityLabel(L("Console"))
+
+            Button { exitFullScreen() } label: {
+                Image(systemName: "arrow.down.right.and.arrow.up.left")
+            }
+            .accessibilityLabel(L("Exit full screen"))
+        }
+        .font(.system(size: 15, weight: .semibold))
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(.ultraThinMaterial, in: Capsule())
+        .opacity(controlsAreDimmed ? 0.28 : 1)
+        .animation(.easeInOut(duration: 0.25), value: controlsAreDimmed)
+    }
+
+    private func enterFullScreen() {
+        showConsole = false
+        withAnimation(.easeInOut(duration: 0.2)) { isFullScreen = true }
+        withAnimation { showFullScreenHint = true }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_600_000_000)
+            withAnimation { showFullScreenHint = false }
+        }
+        wakeControls()
+    }
+
+    private func exitFullScreen() {
+        dimTask?.cancel()
+        controlsAreDimmed = false
+        withAnimation(.easeInOut(duration: 0.2)) { isFullScreen = false }
+    }
+
+    /// Brings the floating bar back to full strength and restarts the fade.
+    /// It only ever dims — never disappears — so there is always something to
+    /// tap to get out.
+    private func wakeControls() {
+        guard isFullScreen else { return }
+        dimTask?.cancel()
+        controlsAreDimmed = false
+        dimTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            guard !Task.isCancelled else { return }
+            controlsAreDimmed = true
         }
     }
 
@@ -396,9 +515,12 @@ private struct WebPreview: UIViewRepresentable {
     let onConsole: (ConsoleMessage) -> Void
     let onLoadingChange: (Bool) -> Void
     let onTitleChange: (String) -> Void
+    /// Any touch on the page. Used to bring the full-screen controls back.
+    var onInteraction: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onConsole: onConsole, onLoadingChange: onLoadingChange, onTitleChange: onTitleChange)
+        Coordinator(onConsole: onConsole, onLoadingChange: onLoadingChange,
+                    onTitleChange: onTitleChange, onInteraction: onInteraction)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -419,6 +541,17 @@ private struct WebPreview: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.keyboardDismissMode = .interactive
+
+        // Observes touches without consuming them, so the page still gets every
+        // tap while the full-screen controls learn that the user is there.
+        let tap = UITapGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.handleInteraction))
+        tap.cancelsTouchesInView = false
+        tap.delaysTouchesBegan = false
+        tap.delaysTouchesEnded = false
+        tap.delegate = context.coordinator
+        webView.addGestureRecognizer(tap)
+
         context.coordinator.load(request, into: webView)
         context.coordinator.lastToken = reloadToken
         return webView
@@ -434,7 +567,8 @@ private struct WebPreview: UIViewRepresentable {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "codeforge")
     }
 
-    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate,
+                             UIGestureRecognizerDelegate {
 
         /// Mirrors console output and uncaught errors back into the app, which
         /// is what makes this a developer preview rather than a viewer.
@@ -482,14 +616,24 @@ private struct WebPreview: UIViewRepresentable {
         private let onConsole: (ConsoleMessage) -> Void
         private let onLoadingChange: (Bool) -> Void
         private let onTitleChange: (String) -> Void
+        private let onInteraction: () -> Void
         var lastToken = -1
 
         init(onConsole: @escaping (ConsoleMessage) -> Void,
              onLoadingChange: @escaping (Bool) -> Void,
-             onTitleChange: @escaping (String) -> Void) {
+             onTitleChange: @escaping (String) -> Void,
+             onInteraction: @escaping () -> Void) {
             self.onConsole = onConsole
             self.onLoadingChange = onLoadingChange
             self.onTitleChange = onTitleChange
+            self.onInteraction = onInteraction
+        }
+
+        @objc func handleInteraction() { onInteraction() }
+
+        func gestureRecognizer(_ recognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            true
         }
 
         func load(_ request: PreviewRequest, into webView: WKWebView) {
