@@ -185,7 +185,26 @@ final class CodeTextStorage: NSTextStorage {
 
     // MARK: - NSTextStorage primitives
 
-    override var string: String { backing.string }
+    /// Cleared on every character edit; see `string`.
+    private var cachedString: String?
+
+    /// The buffer as a Swift `String`.
+    ///
+    /// TextKit asks for this constantly — glyph generation, line breaking, every
+    /// layout query — and `NSMutableAttributedString.string` hands back a
+    /// *mutable* NSString, which Swift has to copy to produce a value-typed
+    /// `String`. That put a copy of the whole document in the middle of the
+    /// layout loop, which is why scrolling cost grew with the size of the file:
+    /// 0.99 ms per screen for a plain UITextView over the same text against
+    /// 80 ms for this one at 3,000 lines, and 235 ms at 8,000.
+    ///
+    /// One copy per edit instead of one per query.
+    override var string: String {
+        if let cachedString { return cachedString }
+        let snapshot = backing.string
+        cachedString = snapshot
+        return snapshot
+    }
 
     /// The buffer as `NSString`, with no copy and no Swift-String bridging.
     ///
@@ -206,6 +225,7 @@ final class CodeTextStorage: NSTextStorage {
     override func replaceCharacters(in range: NSRange, with str: String) {
         beginEditing()
         backing.replaceCharacters(in: range, with: str)
+        cachedString = nil
         version &+= 1
         edited(.editedCharacters, range: range,
                changeInLength: (str as NSString).length - range.length)

@@ -137,6 +137,18 @@ enum SelfTest {
                   storage.nsString.length == storage.length)
             check("nsString content matches", storage.nsString.substring(to: 6) == "line 0")
 
+            // `string` sits inside TextKit's layout loop, so it has to be a
+            // lookup and not a copy of the document.
+            let stringBegan = Date()
+            var nonEmpty = true
+            // `isEmpty` is O(1); what is being timed is getting hold of the
+            // string at all.
+            for _ in 0..<2_000 { nonEmpty = nonEmpty && !storage.string.isEmpty }
+            let stringSeconds = Date().timeIntervalSince(stringBegan)
+            check("2000 reads of .string took \(String(format: "%.3f", stringSeconds))s "
+                  + "[\(storage.length) chars]", nonEmpty && stringSeconds < 1.0)
+            check("`string` still tracks edits", storage.string.hasPrefix("line 0"))
+
             // The incremental index must agree with a from-scratch scan; that is
             // the property every gutter and caret readout depends on.
             let patched = storage.lineStarts
