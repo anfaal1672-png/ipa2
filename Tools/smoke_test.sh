@@ -12,7 +12,7 @@ set -euo pipefail
 
 APP_PATH="${1:?usage: smoke_test.sh <CodeForge.app>}"
 BUNDLE_ID="com.codeforge.editor"
-DEVICE_NAME="${SMOKE_DEVICE:-iPhone 17}"
+DEVICE_NAME="${SMOKE_DEVICE:-iPhone 16}"
 
 echo "==> Booting simulator: $DEVICE_NAME"
 DEVICE_ID=$(xcrun simctl list devices available -j \
@@ -42,8 +42,22 @@ if [ -z "$DEVICE_ID" ]; then
   exit 1
 fi
 
+echo "    device $DEVICE_ID"
 xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
-xcrun simctl bootstatus "$DEVICE_ID" -b
+# -b waits forever if the device never comes up, which turns a bad pick into a
+# job that burns its whole timeout with no output.
+xcrun simctl bootstatus "$DEVICE_ID" -b &
+BOOT_PID=$!
+for _ in $(seq 1 60); do
+  kill -0 "$BOOT_PID" 2>/dev/null || break
+  sleep 5
+done
+if kill -0 "$BOOT_PID" 2>/dev/null; then
+  kill "$BOOT_PID" 2>/dev/null || true
+  echo "!!! simulator $DEVICE_ID did not boot within 5 minutes" >&2
+  exit 1
+fi
+wait "$BOOT_PID" || true
 
 echo "==> Installing $APP_PATH"
 xcrun simctl install "$DEVICE_ID" "$APP_PATH"

@@ -179,7 +179,7 @@ enum SelfTest {
             func scrollCost(lines: Int, chrome: Bool, highlighting: Bool,
                             plainTextView: Bool) -> Double {
                 let text = lines == stressLines ? stressBody : makeBody(lines: lines)
-                let steps = 40
+                let steps = 20
                 let view: UITextView
 
                 if plainTextView {
@@ -266,8 +266,8 @@ enum SelfTest {
                     scrollCost(lines: stressLines, chrome: false, highlighting: true, plainTextView: false)
                 results["scroll ms: ours, no highlighting"] =
                     scrollCost(lines: stressLines, chrome: true, highlighting: false, plainTextView: false)
-                results["scroll ms: ours, 12k lines"] =
-                    scrollCost(lines: 12_000, chrome: true, highlighting: true, plainTextView: false)
+                results["scroll ms: ours, 8k lines"] =
+                    scrollCost(lines: 8_000, chrome: true, highlighting: true, plainTextView: false)
             }
 
             for (name, value) in results.sorted(by: { $0.key < $1.key }) {

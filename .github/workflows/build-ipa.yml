@@ -13,6 +13,12 @@ on:
 permissions:
   contents: write
 
+# A newer push supersedes an in-flight run, so a hung job does not hold the
+# queue (or the release) for its whole timeout.
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-15
@@ -63,6 +69,7 @@ jobs:
             build
 
       - name: Launch smoke test (default and Japanese)
+        timeout-minutes: 12
         run: |
           chmod +x Tools/smoke_test.sh
           Tools/smoke_test.sh build-sim/Build/Products/Debug-iphonesimulator/CodeForge.app
