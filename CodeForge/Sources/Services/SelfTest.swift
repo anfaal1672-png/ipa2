@@ -366,6 +366,39 @@ enum SelfTest {
             check("a reference link cannot break out of href",
                   !markdownHTML.contains("\"onerror=\""))
 
+            // --- the console collapses repeats -----------------------------------
+            //
+            // A script that throws inside a loop reports the same line thousands
+            // of times; the log has to stay readable, and what gets copied has
+            // to stay pasteable.
+            var log = ConsoleLog()
+            for _ in 0..<500 {
+                log.record(ConsoleMessage(level: "error", text: "TypeError: x is not a function"))
+                log.record(ConsoleMessage(level: "log", text: "tick"))
+            }
+            log.record(ConsoleMessage(level: "error", text: "a different failure"))
+
+            check("repeats collapse into one row each [\(log.messages.count) rows]",
+                  log.messages.count == 3)
+            check("the tally counts every occurrence [\(log.messages.first?.count ?? 0)]",
+                  log.messages.first?.count == 500)
+            check("interleaved output still collapses", log.messages[1].count == 500)
+            check("order is kept", log.messages[0].level == "error" && log.messages[1].text == "tick")
+            check("a distinct message is still its own row", log.messages[2].count == 1)
+            check("errors are counted by row, not by occurrence", log.errorCount == 2)
+            check("copying takes each line once",
+                  log.copyText.components(separatedBy: "tick").count == 2)
+
+            var capped = ConsoleLog()
+            for index in 0..<(ConsoleLog.cap + 50) {
+                capped.record(ConsoleMessage(level: "log", text: "unique \(index)"))
+            }
+            check("the log stops growing at the cap [\(capped.messages.count)]",
+                  capped.isFull && capped.messages.count == ConsoleLog.cap + 1)
+
+            log.clear()
+            check("clearing forgets the tallies too", log.isEmpty && log.errorCount == 0)
+
             // --- line endings survive a round trip ------------------------------
             //
             // Opening a Windows file and saving it must not silently rewrite

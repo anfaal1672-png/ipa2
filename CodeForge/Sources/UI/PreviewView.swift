@@ -42,6 +42,10 @@ struct ConsoleMessage: Identifiable {
     let id = UUID()
     let level: String
     let text: String
+    /// How many times this exact line has been reported. A loop that throws on
+    /// every iteration should read as one entry with a tally, not as a thousand
+    /// rows burying everything else.
+    var count: Int = 1
 
     var color: Color {
         switch level {
@@ -61,6 +65,63 @@ struct ConsoleMessage: Identifiable {
     }
 }
 
+/// The console's contents, with repeats collapsed.
+///
+/// A separate type rather than a handful of `@State` properties so the
+/// collapsing rule is covered by the self test — the interesting behaviour is
+/// all in `record`, and none of it needs a view to exercise.
+struct ConsoleLog {
+
+    private(set) var messages: [ConsoleMessage] = []
+    /// level + text → where that line already sits in `messages`.
+    private var index: [String: Int] = [:]
+    private(set) var isFull = false
+
+    /// A page in a bad loop can report faster than anything can read; past this
+    /// many *distinct* lines the log stops growing. Repeats still count.
+    static let cap = 2_000
+
+    var isEmpty: Bool { messages.isEmpty }
+    var errorCount: Int { messages.filter { $0.level == "error" }.count }
+
+    mutating func record(_ message: ConsoleMessage) {
+        let key = message.level + "\u{0}" + message.text
+        if let existing = index[key] {
+            // Counted in place: the entry keeps its original position, so the
+            // order of the log still means something.
+            messages[existing].count += 1
+            return
+        }
+        guard messages.count < Self.cap else {
+            if !isFull {
+                isFull = true
+                messages.append(ConsoleMessage(
+                    level: "warn",
+                    text: L("Too many different messages — the rest are not shown.")))
+            }
+            return
+        }
+        index[key] = messages.count
+        messages.append(message)
+    }
+
+    mutating func clear() {
+        messages.removeAll()
+        index.removeAll()
+        isFull = false
+    }
+
+    /// One line per entry, tagged with its level so an error is still
+    /// recognisable once pasted somewhere else. A repeated line appears once —
+    /// the tally is on screen, and pasting the same stack trace a thousand
+    /// times helps nobody.
+    var copyText: String {
+        messages.map { message in
+            message.level == "log" ? message.text : "[\(message.level)] \(message.text)"
+        }.joined(separator: "\n")
+    }
+}
+
 /// Live preview: renders the file, and for HTML, JavaScript, Python, Lua and
 /// SQL actually *runs* it.
 struct PreviewView: View {
@@ -70,7 +131,7 @@ struct PreviewView: View {
     @EnvironmentObject private var settings: EditorSettings
     @Environment(\.dismiss) private var dismiss
 
-    @State private var messages: [ConsoleMessage] = []
+    @State private var log = ConsoleLog()
     @State private var showConsole = false
     @State private var reloadToken = 0
     @State private var autoRefresh = true
@@ -91,7 +152,7 @@ struct PreviewView: View {
     @State private var copyResetTask: Task<Void, Never>?
 
     private var kind: PreviewKind { PreviewKind.kind(for: document.language) }
-    private var errorCount: Int { messages.filter { $0.level == "error" }.count }
+    private var errorCount: Int { log.errorCount }
 
     private var runtimeName: String? {
         guard case .runtime(let id) = kind else { return nil }
@@ -108,7 +169,7 @@ struct PreviewView: View {
                         WebPreview(request: request,
                                    reloadToken: reloadToken,
                                    onConsole: { message in
-                                       messages.append(message)
+                                       log.record(message)
                                        // A page that renders wrong because a
                                        // script died is worse than useless if the
                                        // reason stays hidden behind a button.
@@ -161,7 +222,7 @@ struct PreviewView: View {
                     if isLoading { ProgressView().controlSize(.small) }
 
                     Button {
-                        messages.removeAll()
+                        log.clear()
                         rebuild()
                         reloadToken += 1
                     } label: {
@@ -176,7 +237,7 @@ struct PreviewView: View {
                             Image(systemName: "terminal")
                             if errorCount > 0 {
                                 Circle().fill(Color.red).frame(width: 7, height: 7).offset(x: 5, y: -3)
-                            } else if !messages.isEmpty {
+                            } else if !log.isEmpty {
                                 Circle().fill(Color(theme.accent)).frame(width: 7, height: 7).offset(x: 5, y: -3)
                             }
                         }
@@ -195,7 +256,7 @@ struct PreviewView: View {
                                   systemImage: "arrow.up.left.and.arrow.down.right")
                         }
                         Button {
-                            messages.removeAll()
+                            log.clear()
                         } label: { Label(L("Clear console"), systemImage: "trash") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -234,7 +295,7 @@ struct PreviewView: View {
     private var floatingControls: some View {
         HStack(spacing: 16) {
             Button {
-                messages.removeAll()
+                log.clear()
                 rebuild()
                 reloadToken += 1
                 wakeControls()
@@ -309,14 +370,6 @@ struct PreviewView: View {
 
     // MARK: - Console
 
-    /// Copies the whole log, each line tagged with its level so an error is
-    /// still recognisable once it has been pasted somewhere else.
-    private func copyConsole() {
-        let text = messages.map { message in
-            message.level == "log" ? message.text : "[\(message.level)] \(message.text)"
-        }.joined(separator: "\n")
-        copy(text)
-    }
 
     private func copy(_ text: String) {
         guard !text.isEmpty else { return }
@@ -334,7 +387,7 @@ struct PreviewView: View {
         VStack(spacing: 0) {
             HStack {
                 Text(L("Console")).font(.caption.weight(.semibold))
-                Text("\(messages.count)")
+                Text("\(log.messages.count)")
                     .font(.caption2.monospacedDigit())
                     .foregroundColor(.secondary)
                 Spacer()
@@ -344,21 +397,21 @@ struct PreviewView: View {
                         .foregroundColor(.secondary)
                         .transition(.opacity)
                 }
-                Button { copyConsole() } label: {
+                Button { copy(log.copyText) } label: {
                     Image(systemName: "doc.on.doc")
                 }
                 .font(.caption)
-                .disabled(messages.isEmpty)
+                .disabled(log.isEmpty)
                 .accessibilityLabel(L("Copy all"))
 
-                Button(L("Clear console")) { messages.removeAll() }.font(.caption)
+                Button(L("Clear console")) { log.clear() }.font(.caption)
                 Button { showConsole = false } label: { Image(systemName: "chevron.down") }
                     .font(.caption)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
 
-            if messages.isEmpty {
+            if log.isEmpty {
                 Text(L("No console output"))
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -369,16 +422,36 @@ struct PreviewView: View {
                 ScrollViewReader { scrollProxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 4) {
-                            ForEach(messages) { message in
+                            ForEach(log.messages) { message in
                                 HStack(alignment: .top, spacing: 6) {
                                     Image(systemName: message.icon)
                                         .font(.system(size: 9))
                                         .foregroundColor(message.color)
                                         .padding(.top, 2)
-                                    Text(message.text)
-                                        .font(.system(size: 12, design: .monospaced))
-                                        .foregroundColor(message.color)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(message.text)
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .foregroundColor(message.color)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                                        if message.count > 1 {
+                                            Text("×\(message.count)")
+                                                .font(.system(size: 10, weight: .semibold,
+                                                              design: .rounded))
+                                                .monospacedDigit()
+                                                .foregroundColor(message.color)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 1)
+                                                .background(message.color.opacity(0.15),
+                                                            in: Capsule())
+                                                // Not selectable, so a drag over
+                                                // the log copies the message and
+                                                // not the tally beside it.
+                                                .textSelection(.disabled)
+                                                .accessibilityLabel(
+                                                    "\(L("Repeated")) \(message.count)")
+                                        }
+                                    }
                                 }
                                 .id(message.id)
                                 // Long press for one line; the button in the
@@ -389,7 +462,7 @@ struct PreviewView: View {
                                         copy(message.text)
                                     } label: { Label(L("Copy"), systemImage: "doc.on.doc") }
                                     Button {
-                                        copyConsole()
+                                        copy(log.copyText)
                                     } label: { Label(L("Copy all"), systemImage: "doc.on.doc.fill") }
                                 }
                             }
@@ -400,8 +473,8 @@ struct PreviewView: View {
                         // select across several messages at once.
                         .textSelection(.enabled)
                     }
-                    .onChange(of: messages.count) { _ in
-                        if let last = messages.last {
+                    .onChange(of: log.messages.count) { _ in
+                        if let last = log.messages.last {
                             withAnimation { scrollProxy.scrollTo(last.id, anchor: .bottom) }
                         }
                     }
