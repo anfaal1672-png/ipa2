@@ -357,15 +357,29 @@ final class WorkspaceStore: ObservableObject {
 
     private let sessionKey = "openDocumentPaths"
 
+    /// Stored relative to Documents wherever possible.
+    ///
+    /// iOS gives the app container a new UUID on every reinstall, so absolute
+    /// paths saved by the previous copy point nowhere and every open tab was
+    /// silently dropped — which for a sideloaded build means losing the session
+    /// on each new build.
     private func persistSession() {
-        let paths = openDocuments.compactMap { $0.url?.path }
+        let base = documentsURL.standardizedFileURL.path
+        let paths = openDocuments.compactMap { $0.url?.standardizedFileURL.path }.map { path in
+            path.hasPrefix(base + "/") ? String(path.dropFirst(base.count + 1)) : path
+        }
         UserDefaults.standard.set(paths, forKey: sessionKey)
     }
 
     private func restoreSession() {
-        let paths = UserDefaults.standard.stringArray(forKey: sessionKey) ?? []
-        for path in paths where FileManager.default.fileExists(atPath: path) {
-            openDocuments.append(CodeDocument.placeholder(url: URL(fileURLWithPath: path)))
+        let stored = UserDefaults.standard.stringArray(forKey: sessionKey) ?? []
+        for entry in stored {
+            // Absolute entries are from an older build of the app.
+            let url = entry.hasPrefix("/")
+                ? URL(fileURLWithPath: entry)
+                : documentsURL.appendingPathComponent(entry)
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            openDocuments.append(CodeDocument.placeholder(url: url))
         }
         // Only the tab that is about to be shown gets read from disk; the
         // others load when the user switches to them.

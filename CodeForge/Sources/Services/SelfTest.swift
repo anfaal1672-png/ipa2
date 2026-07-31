@@ -298,6 +298,92 @@ enum SelfTest {
             check("opening stays sane [" + String(format: "%.2fs", results["open (s)"] ?? 99) + "]",
                   (results["open (s)"] ?? 99) < 4.0)
 
+            // --- the scanner, against every language it claims to support ----
+            //
+            // Token ranges are handed straight to NSTextStorage, so one that
+            // runs past the end of the text is a crash rather than a wrong
+            // colour. The sample is deliberately malformed: an unterminated
+            // string, an unclosed block comment, a lone tag, characters outside
+            // the basic plane.
+            let nastySample = """
+            let x = "unterminated
+            /* block comment that never closes
+            # hash 'quote' <tag attr="v"> 日本語テキスト 😀 \\u{1F600}
+            0xFF 1e10 .5 --- +++ <<<<<<< ======= >>>>>>>
+            \t\tindented\tby\ttabs
+            """
+            let nastyLength = (nastySample as NSString).length
+            var badRanges: [String] = []
+            var emptyTokens = 0
+            var totalTokens = 0
+            for language in LanguageRegistry.shared.all {
+                let produced = SyntaxScanner(language: language).tokenize(nastySample)
+                totalTokens += produced.count
+                for token in produced {
+                    if token.range.length == 0 { emptyTokens += 1 }
+                    if token.range.location < 0 || token.range.length < 0
+                        || NSMaxRange(token.range) > nastyLength {
+                        badRanges.append("\(language.id):\(token.range)")
+                        break
+                    }
+                }
+            }
+            // Out of bounds is a crash waiting to happen; an empty token is only
+            // wasted work, so it is reported rather than failed on.
+            NSLog("SELFTEST timing: empty tokens = %d", emptyTokens)
+            check("every language tokenises within bounds "
+                  + "[\(LanguageRegistry.shared.all.count) languages, \(totalTokens) tokens]"
+                  + (badRanges.isEmpty ? "" : " bad: \(badRanges.prefix(5).joined(separator: ", "))"),
+                  badRanges.isEmpty)
+
+            // --- generated HTML ------------------------------------------------
+            //
+            // The preview inlines the user's own code into a page, and HTML ends
+            // an element at the first matching closing tag in the *source* — so
+            // a script that merely mentions its own closing tag used to cut the
+            // page in half.
+            let jsWithClosingTag = "console.log(\"</script><h1>escaped</h1>\");"
+            let scriptPage = PreviewPage.page(body: "", theme: Themes.midnight,
+                                              script: jsWithClosingTag)
+            check("a script cannot close its own tag",
+                  !scriptPage.contains("</script><h1>") && scriptPage.contains("<\\/script>"))
+            let stylePage = PreviewPage.page(body: "", theme: Themes.midnight,
+                                             extraCSS: "a::after { content: '</style><b>x'; }")
+            check("a stylesheet cannot close its own tag",
+                  !stylePage.contains("</style><b>"))
+
+            let wrapped = PreviewPage.prepared("<p>fragment</p>")
+            check("a fragment gets a document around it",
+                  wrapped.contains("<!DOCTYPE html>") && wrapped.contains("name=\"viewport\""))
+            let full = PreviewPage.prepared(
+                "<html><head><meta name=\"viewport\" content=\"width=device-width\"></head><body>x</body></html>")
+            check("an existing viewport is left alone",
+                  full.components(separatedBy: "name=\"viewport\"").count == 2)
+
+            let markdownHTML = MarkdownRenderer.html(from: "<script>alert(1)</script>\n\n[a]: x\"onerror=\"y",
+                                                     theme: Themes.midnight)
+            check("markdown escapes raw html", !markdownHTML.contains("<script>alert"))
+            check("a reference link cannot break out of href",
+                  !markdownHTML.contains("\"onerror=\""))
+
+            // --- line endings survive a round trip ------------------------------
+            //
+            // Opening a Windows file and saving it must not silently rewrite
+            // every line ending in the file.
+            let crlfURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("codeforge-selftest-crlf.txt")
+            try? "one\r\ntwo\r\nthree".write(to: crlfURL, atomically: true, encoding: .utf8)
+            if let loaded = try? CodeDocument.load(from: crlfURL) {
+                check("CRLF is detected", loaded.lineEnding == .crlf)
+                loaded.replaceText("four\nfive")
+                try? loaded.save()
+                let written = (try? String(contentsOf: crlfURL, encoding: .utf8)) ?? ""
+                check("CRLF is written back", written == "four\r\nfive")
+            } else {
+                check("the CRLF fixture loads", false)
+            }
+            try? FileManager.default.removeItem(at: crlfURL)
+
             if failures.isEmpty {
                 NSLog("SELFTEST RESULT pass (%d checks)", passed)
             } else {

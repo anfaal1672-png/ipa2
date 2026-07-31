@@ -20,7 +20,11 @@ enum MarkdownRenderer {
                    let urlRange = text.range(of: #":\s*(\S+)"#, options: .regularExpression) {
                     let id = String(text[idRange]).dropFirst().dropLast().lowercased()
                     let url = String(text[urlRange]).dropFirst().trimmingCharacters(in: .whitespaces)
-                    references[String(id)] = url
+                    // Escaped here because it is spliced into href="…" later,
+                    // and unlike inline links this text never passes through
+                    // `escape`: a URL holding a quote broke out of the
+                    // attribute and swallowed the rest of the tag.
+                    references[String(id)] = escape(url)
                 }
             }
         }

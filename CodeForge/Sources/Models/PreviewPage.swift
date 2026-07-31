@@ -129,10 +129,26 @@ enum PreviewPage {
         }
     }
 
+    /// Neutralises a closing tag that would end the element the text is being
+    /// inlined into.
+    ///
+    /// HTML ends a `<script>` at the first `</script` in the *source*, no matter
+    /// where JavaScript thinks it is — so `print("</script>")` in a previewed
+    /// file cut the script short and dumped the rest of the code onto the page
+    /// as markup. `<\/script` is the same string to a JavaScript (and CSS)
+    /// parser, and it cannot appear outside a string, comment or regex, so the
+    /// substitution never changes what the code means.
+    private static func escapingClosingTag(_ text: String, _ tag: String) -> String {
+        text.replacingOccurrences(of: "</\(tag)", with: "<\\/\(tag)",
+                                  options: [.caseInsensitive])
+    }
+
     /// Wraps generated content in a page themed like the editor.
     static func page(body: String, theme: EditorTheme,
-                     script: String = "", extraCSS: String = "") -> String {
-        """
+                     script rawScript: String = "", extraCSS rawCSS: String = "") -> String {
+        let script = escapingClosingTag(rawScript, "script")
+        let extraCSS = escapingClosingTag(rawCSS, "style")
+        return """
         <!DOCTYPE html>
         <html lang="ja">
         <head>

@@ -120,7 +120,11 @@ final class LocalWebServer {
             // Headers end at the first blank line; this server has no request
             // bodies to worry about.
             guard let headerEnd = accumulated.range(of: Data("\r\n\r\n".utf8)) else {
-                if accumulated.count > 64 * 1024 {
+                // `isComplete` means no more bytes are coming, so an unfinished
+                // header will never finish. Asking for more would return
+                // immediately with nothing, land back here, and spin the queue
+                // forever on one truncated request.
+                if isComplete || accumulated.count > 64 * 1024 {
                     connection.cancel()
                 } else {
                     self.receiveRequest(on: connection, buffer: accumulated)
