@@ -399,6 +399,28 @@ enum SelfTest {
             log.clear()
             check("clearing forgets the tallies too", log.isEmpty && log.errorCount == 0)
 
+            // --- new files get an unused name -----------------------------------
+            let nameRoot = FileManager.default.temporaryDirectory
+                .appendingPathComponent("codeforge-selftest-names-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: nameRoot, withIntermediateDirectories: true)
+            check("a free name is left alone",
+                  WorkspaceStore.availableName(for: "main.py", in: nameRoot) == "main.py")
+            try? Data().write(to: nameRoot.appendingPathComponent("main.py"))
+            check("a taken name gets a number, before the extension",
+                  WorkspaceStore.availableName(for: "main.py", in: nameRoot) == "main 2.py")
+            try? Data().write(to: nameRoot.appendingPathComponent("main 2.py"))
+            try? Data().write(to: nameRoot.appendingPathComponent("main 3.py"))
+            check("numbering skips what is already there",
+                  WorkspaceStore.availableName(for: "main.py", in: nameRoot) == "main 4.py")
+            try? Data().write(to: nameRoot.appendingPathComponent("Makefile"))
+            check("a name without an extension still numbers",
+                  WorkspaceStore.availableName(for: "Makefile", in: nameRoot) == "Makefile 2")
+            try? Data().write(to: nameRoot.appendingPathComponent("archive.tar.gz"))
+            check("only the last extension is treated as one",
+                  WorkspaceStore.availableName(for: "archive.tar.gz", in: nameRoot)
+                  == "archive.tar 2.gz")
+            try? FileManager.default.removeItem(at: nameRoot)
+
             // --- line endings survive a round trip ------------------------------
             //
             // Opening a Windows file and saving it must not silently rewrite

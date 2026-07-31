@@ -136,11 +136,12 @@ final class WorkspaceStore: ObservableObject {
     // MARK: - File operations
 
     func createFile(named name: String, in folder: FileItem, contents: String = "") {
-        let target = folder.url.appendingPathComponent(name)
-        guard !FileManager.default.fileExists(atPath: target.path) else {
-            errorMessage = "「\(name)」\(L("already exists."))"
-            return
-        }
+        // The sheet resolves collisions and has the numbered name confirmed
+        // before getting here; this only bites if something else claimed the
+        // name in between, and taking the next number beats refusing to create
+        // the file the user just asked for.
+        let target = folder.url.appendingPathComponent(
+            Self.availableName(for: name, in: folder.url))
         do {
             try contents.write(to: target, atomically: true, encoding: .utf8)
             refreshTree()
@@ -254,17 +255,26 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
-    func uniqueURL(in folder: URL, base: String, ext: String) -> URL {
-        var candidate = ext.isEmpty ? folder.appendingPathComponent(base)
-                                    : folder.appendingPathComponent(base).appendingPathExtension(ext)
+    /// A name that does not collide with anything already in `folder`:
+    /// `main.py` becomes `main 2.py`, then `main 3.py`, and so on. The
+    /// extension is kept where it belongs rather than tacked onto the number.
+    static func availableName(for name: String, in folder: URL) -> String {
+        let ns = name as NSString
+        let ext = ns.pathExtension
+        let base = ns.deletingPathExtension
+        var candidate = name
         var counter = 2
-        while FileManager.default.fileExists(atPath: candidate.path) {
-            let name = "\(base) \(counter)"
-            candidate = ext.isEmpty ? folder.appendingPathComponent(name)
-                                    : folder.appendingPathComponent(name).appendingPathExtension(ext)
+        while FileManager.default.fileExists(
+                atPath: folder.appendingPathComponent(candidate).path) {
+            candidate = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
             counter += 1
         }
         return candidate
+    }
+
+    func uniqueURL(in folder: URL, base: String, ext: String) -> URL {
+        let name = ext.isEmpty ? base : "\(base).\(ext)"
+        return folder.appendingPathComponent(Self.availableName(for: name, in: folder))
     }
 
     func refreshTree() {

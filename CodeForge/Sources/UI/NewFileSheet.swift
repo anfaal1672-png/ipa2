@@ -16,6 +16,19 @@ struct NewFileSheet: View {
     @State private var useExample = true
     @FocusState private var nameFocused: Bool
 
+    /// Set when the typed name is taken. The file is not created until the user
+    /// agrees to the numbered name — silently creating "main 2.py" when someone
+    /// asked for "main.py" would be a good way to lose track of which file is
+    /// which.
+    @State private var conflict: Conflict?
+
+    private struct Conflict: Identifiable {
+        let id = UUID()
+        let requested: String
+        let resolved: String
+        let contents: String
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -95,6 +108,19 @@ struct NewFileSheet: View {
                 if name.isEmpty { name = selected.suggestedName }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { nameFocused = true }
             }
+            .alert(L("That name is taken"),
+                   isPresented: Binding(get: { conflict != nil },
+                                        set: { if !$0 { conflict = nil } }),
+                   presenting: conflict) { pending in
+                Button(L("Create")) {
+                    onCreate(pending.resolved, pending.contents)
+                    dismiss()
+                }
+                Button(L("Cancel"), role: .cancel) { nameFocused = true }
+            } message: { pending in
+                Text(String(format: L("“%@” already exists. Create “%@” instead?"),
+                            pending.requested, pending.resolved))
+            }
         }
     }
 
@@ -120,6 +146,11 @@ struct NewFileSheet: View {
     private func create() {
         guard !finalName.isEmpty else { return }
         let contents = (useExample && !selected.body.isEmpty) ? selected.body : ""
+        let resolved = WorkspaceStore.availableName(for: finalName, in: folder.url)
+        guard resolved == finalName else {
+            conflict = Conflict(requested: finalName, resolved: resolved, contents: contents)
+            return
+        }
         onCreate(finalName, contents)
         dismiss()
     }

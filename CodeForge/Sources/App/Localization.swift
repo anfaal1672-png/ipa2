@@ -222,6 +222,9 @@ final class Localization {
         ("Delete this item?", "削除しますか？"),
         ("This cannot be undone.", "この操作は取り消せません。"),
         ("already exists.", "はすでに存在します。"),
+        ("That name is taken", "同じ名前のファイルがあります"),
+        ("“%@” already exists. Create “%@” instead?",
+         "「%@」はすでにあります。「%@」として作成しますか？"),
         ("This file is not text (binary content).", "このファイルはテキストではありません（バイナリ）。"),
 
         // --- find & replace --------------------------------------------------------
