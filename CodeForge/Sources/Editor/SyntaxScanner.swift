@@ -254,7 +254,8 @@ struct SyntaxScanner {
             if c == 0x0A && !rule.multiline {
                 break
             }
-            if let esc = rule.escape, !rule.raw, c == UInt16(esc.unicodeScalars.first!.value) {
+            if let esc = rule.escape, !rule.raw,
+               let escScalar = esc.unicodeScalars.first, c == UInt16(truncatingIfNeeded: escScalar.value) {
                 let len = min(2, end - i)
                 inner.append(Token(type: .escape, range: NSRange(location: i, length: len)))
                 i += len

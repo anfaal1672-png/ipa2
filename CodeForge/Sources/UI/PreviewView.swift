@@ -85,6 +85,10 @@ struct PreviewView: View {
     @State private var controlsAreDimmed = false
     @State private var showFullScreenHint = false
     @State private var dimTask: Task<Void, Never>?
+    @State private var hintTask: Task<Void, Never>?
+
+    @State private var didCopy = false
+    @State private var copyResetTask: Task<Void, Never>?
 
     private var kind: PreviewKind { PreviewKind.kind(for: document.language) }
     private var errorCount: Int { messages.filter { $0.level == "error" }.count }
@@ -213,6 +217,8 @@ struct PreviewView: View {
             .onAppear { rebuild() }
             .onDisappear {
                 dimTask?.cancel()
+                hintTask?.cancel()
+                copyResetTask?.cancel()
                 PreviewWorkspace.shared.cleanUp()
             }
             .onChange(of: document.revision) { _ in
@@ -268,8 +274,10 @@ struct PreviewView: View {
         showConsole = false
         withAnimation(.easeInOut(duration: 0.2)) { isFullScreen = true }
         withAnimation { showFullScreenHint = true }
-        Task { @MainActor in
+        hintTask?.cancel()
+        hintTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_600_000_000)
+            guard !Task.isCancelled else { return }
             withAnimation { showFullScreenHint = false }
         }
         wakeControls()
@@ -301,6 +309,27 @@ struct PreviewView: View {
 
     // MARK: - Console
 
+    /// Copies the whole log, each line tagged with its level so an error is
+    /// still recognisable once it has been pasted somewhere else.
+    private func copyConsole() {
+        let text = messages.map { message in
+            message.level == "log" ? message.text : "[\(message.level)] \(message.text)"
+        }.joined(separator: "\n")
+        copy(text)
+    }
+
+    private func copy(_ text: String) {
+        guard !text.isEmpty else { return }
+        UIPasteboard.general.string = text
+        withAnimation { didCopy = true }
+        copyResetTask?.cancel()
+        copyResetTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation { didCopy = false }
+        }
+    }
+
     private var consolePanel: some View {
         VStack(spacing: 0) {
             HStack {
@@ -309,6 +338,19 @@ struct PreviewView: View {
                     .font(.caption2.monospacedDigit())
                     .foregroundColor(.secondary)
                 Spacer()
+                if didCopy {
+                    Label(L("Copied"), systemImage: "checkmark")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .transition(.opacity)
+                }
+                Button { copyConsole() } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .font(.caption)
+                .disabled(messages.isEmpty)
+                .accessibilityLabel(L("Copy all"))
+
                 Button(L("Clear console")) { messages.removeAll() }.font(.caption)
                 Button { showConsole = false } label: { Image(systemName: "chevron.down") }
                     .font(.caption)
@@ -336,14 +378,27 @@ struct PreviewView: View {
                                     Text(message.text)
                                         .font(.system(size: 12, design: .monospaced))
                                         .foregroundColor(message.color)
-                                        .textSelection(.enabled)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .id(message.id)
+                                // Long press for one line; the button in the
+                                // header takes the lot. Dragging across lines
+                                // selects freely thanks to textSelection below.
+                                .contextMenu {
+                                    Button {
+                                        copy(message.text)
+                                    } label: { Label(L("Copy"), systemImage: "doc.on.doc") }
+                                    Button {
+                                        copyConsole()
+                                    } label: { Label(L("Copy all"), systemImage: "doc.on.doc.fill") }
+                                }
                             }
                         }
                         .padding(.horizontal, 14)
                         .padding(.bottom, 10)
+                        // On the stack rather than each line, so a drag can
+                        // select across several messages at once.
+                        .textSelection(.enabled)
                     }
                     .onChange(of: messages.count) { _ in
                         if let last = messages.last {

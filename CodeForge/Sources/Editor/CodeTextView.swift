@@ -41,33 +41,34 @@ final class GutterView: UIView {
         let offsetY = textView.contentOffset.y - textView.textContainerInset.top
         let selection = textView.selectedRange
 
-        // One pass over the visible line fragments; the line number of the
-        // first one comes from the storage's index, and the rest follow.
+        // One pass over the visible line fragments, each number looked up in the
+        // storage's index — a binary search, and immune to the drift a running
+        // counter picks up when a fragment is skipped.
         var visibleRect = textView.bounds
         visibleRect.origin.y -= textView.textContainerInset.top
         let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: container)
-        let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
-
-        var lineNumber = storage.lineNumber(at: charRange.location)
-        var lastLineStart = -1
+        let caretLine = storage.lineNumber(at: min(selection.location, storage.length))
 
         layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, usedRect, _, fragmentGlyphRange, _ in
             let fragmentCharRange = layoutManager.characterRange(forGlyphRange: fragmentGlyphRange,
                                                                  actualGlyphRange: nil)
-            let lineStart = storage.startOfLine(storage.lineNumber(at: fragmentCharRange.location))
+            let lineNumber = storage.lineNumber(at: fragmentCharRange.location)
+            let lineStart = storage.startOfLine(lineNumber)
 
-            // A wrapped line produces several fragments; only the first one
-            // carries the number.
-            if lineStart == lastLineStart { return }
-            if lastLineStart != -1 { lineNumber += 1 }
-            lastLineStart = lineStart
+            // A wrapped line produces several fragments, and the number belongs
+            // to the one holding the line's first character. Deciding that by
+            // comparing with the previous fragment used to put a number beside a
+            // continuation row whenever the viewport opened part-way through a
+            // wrapped line — which is exactly what scrolling does.
+            guard fragmentCharRange.location <= lineStart else { return }
 
             let y = usedRect.origin.y - offsetY
             guard y > -usedRect.height, y < self.bounds.height else { return }
 
-            let isCurrent = NSLocationInRange(selection.location,
-                                              NSRange(location: lineStart,
-                                                      length: max(1, NSMaxRange(fragmentCharRange) - lineStart)))
+            // Comparing line numbers, not offsets: on a wrapped line the caret
+            // is often past the first fragment, and the whole line is still the
+            // current one.
+            let isCurrent = lineNumber == caretLine
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: self.numberFont,
                 .foregroundColor: isCurrent ? self.theme.gutterActiveForeground : self.theme.gutterForeground
@@ -247,7 +248,13 @@ final class CodeTextView: UITextView {
 
     func refreshGutter() {
         updateInsets()
+        // The remembered line is an offset, and offsets mean something else
+        // once a different document is in the buffer: without this, switching
+        // to a file whose caret happens to sit at the same offset leaves the
+        // current-line highlight unpainted.
+        lastCurrentLineStart = -1
         gutter.setNeedsDisplay()
+        setNeedsDisplay()
     }
 
     var numberOfLines: Int { codeStorage.lineCount }

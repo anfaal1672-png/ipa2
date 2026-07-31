@@ -72,9 +72,31 @@ final class WorkspaceStore: ObservableObject {
         activeDocumentID = document.id
     }
 
+    /// Writes a document out, giving an untitled one a file first.
+    ///
+    /// `save()` returns early when there is no URL, so closing a tab that had
+    /// never been saved silently threw away everything typed into it — the tab
+    /// simply disappeared. An untitled buffer with something in it now becomes
+    /// Untitled.txt in Documents instead.
+    private func persist(_ document: CodeDocument) {
+        guard document.isDirty else { return }
+        do {
+            if document.url == nil {
+                guard !document.text.isEmpty else { return }
+                let url = uniqueURL(in: documentsURL, base: "Untitled", ext: "txt")
+                try document.save(to: url)
+                refreshTree()
+            } else {
+                try document.save()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func close(_ document: CodeDocument) {
         flushEditor?()
-        if document.isDirty { try? document.save() }
+        persist(document)
         openDocuments.removeAll { $0.id == document.id }
         if activeDocumentID == document.id {
             activeDocumentID = openDocuments.last?.id
@@ -84,7 +106,7 @@ final class WorkspaceStore: ObservableObject {
 
     func closeAll() {
         flushEditor?()
-        openDocuments.forEach { if $0.isDirty { try? $0.save() } }
+        openDocuments.forEach { persist($0) }
         openDocuments.removeAll()
         activeDocumentID = nil
         persistSession()
@@ -108,9 +130,7 @@ final class WorkspaceStore: ObservableObject {
 
     func saveAll() {
         flushEditor?()
-        for document in openDocuments where document.isDirty {
-            do { try document.save() } catch { errorMessage = error.localizedDescription }
-        }
+        openDocuments.forEach { persist($0) }
     }
 
     // MARK: - File operations

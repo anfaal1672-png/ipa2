@@ -605,10 +605,10 @@ struct CodeEditorView: UIViewRepresentable {
                 // Typing return between a matching pair puts the closer on its own line.
                 let nextCharacter = range.location < ns.length ? ns.substring(with: NSRange(location: range.location, length: 1)) : ""
                 if opensBlock, let opener = trimmed.last.map(String.init),
-                   let closer = language.autoClosePairs[opener], closer == nextCharacter {
+                   let closer = language.autoClosePairs[opener], closer == nextCharacter,
+                   let target = textView.textRange(from: range) ?? textView.selectedTextRange {
                     let closing = "\n" + indent
-                    textView.replace(textView.textRange(from: range) ?? textView.selectedTextRange!,
-                                     withText: insertion + closing)
+                    textView.replace(target, withText: insertion + closing)
                     let newLocation = range.location + (insertion as NSString).length
                     textView.selectedRange = NSRange(location: newLocation, length: 0)
                     return false
@@ -660,9 +660,9 @@ struct CodeEditorView: UIViewRepresentable {
                 let previous = ns.substring(with: NSRange(location: range.location, length: 1))
                 let next = range.location + 1 < ns.length
                     ? ns.substring(with: NSRange(location: range.location + 1, length: 1)) : ""
-                if let closer = language.autoClosePairs[previous], closer == next {
-                    textView.replace(textView.textRange(from: NSRange(location: range.location, length: 2))
-                                     ?? textView.selectedTextRange!, withText: "")
+                if let closer = language.autoClosePairs[previous], closer == next,
+                   let pair = textView.textRange(from: NSRange(location: range.location, length: 2)) {
+                    textView.replace(pair, withText: "")
                     return false
                 }
             }
