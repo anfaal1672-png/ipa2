@@ -1,0 +1,146 @@
+import SwiftUI
+
+/// In-file find & replace, docked under the tab bar.
+struct FindBarView: View {
+
+    let theme: EditorTheme
+    let proxy: EditorProxy
+    @ObservedObject var status: EditorStatus
+    let language: LanguageDefinition
+    @Binding var isPresented: Bool
+
+    @State private var query = ""
+    @State private var replacement = ""
+    @State private var options = FindOptions()
+    @State private var showReplace = false
+    @State private var findTask: Task<Void, Never>?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Button {
+                    withAnimation { showReplace.toggle() }
+                } label: {
+                    Image(systemName: showReplace ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(width: 16)
+                }
+
+                field(text: $query, prompt: L("Find"), isPrimary: true)
+
+                // "…" while the total is still being counted in the background:
+                // on a large file the jump to the first match lands long before
+                // the count does, and showing 0 there would read as "no match".
+                Text(status.isCounting ? "…"
+                     : status.matchCount < 0 ? "—"
+                     : (status.matchCount > 0 ? "\(status.currentMatch)/\(status.matchCount)" : "0"))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(Color(theme.gutterForeground))
+                    .frame(minWidth: 38)
+
+                Button { proxy.findPrevious() } label: { Image(systemName: "chevron.up") }
+                    .disabled(!canNavigate)
+                Button { proxy.findNext() } label: { Image(systemName: "chevron.down") }
+                    .disabled(!canNavigate)
+                Button {
+                    isPresented = false
+                    proxy.find("", options: options)
+                } label: { Image(systemName: "xmark.circle.fill") }
+            }
+
+            if showReplace {
+                HStack(spacing: 8) {
+                    Spacer().frame(width: 16)
+                    field(text: $replacement, prompt: L("Replace with"), isPrimary: false)
+                    Button(L("Replace")) {
+                        proxy.replaceCurrent(with: replacement, query: query, options: options)
+                    }
+                    .disabled(!canNavigate)
+                    Button(L("All")) {
+                        proxy.replaceAll(with: replacement, query: query, options: options)
+                    }
+                    .disabled(query.isEmpty)
+                }
+                .font(.system(size: 13))
+            }
+
+            HStack(spacing: 10) {
+                toggle("Aa", isOn: $options.caseSensitive, help: L("Case sensitive"))
+                toggle("W", isOn: $options.wholeWord, help: L("Whole word"))
+                toggle(".*", isOn: $options.useRegex, help: L("Regular expression"))
+                Spacer()
+            }
+            .padding(.leading, 24)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(theme.gutterBackground))
+        .tint(Color(theme.accent))
+        .foregroundColor(Color(theme.foreground))
+        .onAppear { focused = true }
+        .onChange(of: query) { _ in scheduleFind() }
+        .onChange(of: options) { _ in scheduleFind() }
+        .onDisappear { findTask?.cancel() }
+    }
+
+    /// Navigation works as soon as a match is selected, which happens before
+    /// the background count finishes.
+    private var canNavigate: Bool {
+        status.matchCount != 0 || (status.isCounting && !query.isEmpty)
+    }
+
+    @ViewBuilder
+    private func field(text: Binding<String>, prompt: String, isPrimary: Bool) -> some View {
+        if isPrimary {
+            baseField(text: text, prompt: prompt).focused($focused)
+        } else {
+            baseField(text: text, prompt: prompt)
+        }
+    }
+
+    private func baseField(text: Binding<String>, prompt: String) -> some View {
+        TextField(prompt, text: text)
+            .textFieldStyle(.plain)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+            .font(.system(size: 14, design: .monospaced))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(theme.currentLine))
+            )
+            .submitLabel(.search)
+            .onSubmit { proxy.findNext() }
+    }
+
+    /// Typing "function" should not run seven searches.
+    private func scheduleFind() {
+        findTask?.cancel()
+        let query = self.query
+        let options = self.options
+        findTask = Task {
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { proxy.find(query, options: options) }
+        }
+    }
+
+    private func toggle(_ label: String, isOn: Binding<Bool>, help: String) -> some View {
+        Button {
+            isOn.wrappedValue.toggle()
+        } label: {
+            Text(label)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isOn.wrappedValue ? Color(theme.accent).opacity(0.28) : Color(theme.currentLine))
+                )
+                .foregroundColor(isOn.wrappedValue ? Color(theme.accent) : Color(theme.gutterForeground))
+        }
+        .accessibilityLabel(help)
+    }
+}

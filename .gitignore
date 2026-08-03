@@ -1,0 +1,12 @@
+build/
+DerivedData/
+Payload/
+*.ipa
+xcuserdata/
+.DS_Store
+
+# Third-party runtimes fetched at build time by Tools/fetch_runtimes.sh
+CodeForge/Resources/Runtimes/pyodide/
+CodeForge/Resources/Runtimes/fengari/
+CodeForge/Resources/Runtimes/sqljs/
+CodeForge/Resources/Runtimes/manifest.json

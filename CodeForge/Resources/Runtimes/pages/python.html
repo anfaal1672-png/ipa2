@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python</title>
+<link rel="stylesheet" href="./terminal.css">
+</head>
+<body>
+<div id="status"><i class="dot"></i><span class="label">Python を起動しています…</span></div>
+<pre id="out"></pre>
+<script src="./runner.js"></script>
+<script src="../pyodide/pyodide.js"></script>
+<script>
+(async function () {
+  const started = performance.now();
+  let pyodide;
+  try {
+    pyodide = await loadPyodide({
+      indexURL: '../pyodide/',
+      stdout: (text) => CF.print(text),
+      stderr: (text) => CF.printError(text)
+    });
+  } catch (error) {
+    CF.status('Python を起動できませんでした', 'failed');
+    CF.printError(String(error));
+    return;
+  }
+
+  // input() reads through the host app's native prompt.
+  try {
+    pyodide.setStdin({ stdin: () => window.prompt('input()') ?? '' });
+  } catch (e) { /* older pyodide */ }
+
+  const version = pyodide.runPython('import sys; sys.version.split()[0]');
+  CF.status('Python ' + version + ' — 実行中…');
+  CF.printMeta('Python ' + version + '  (' + CF.since(started) + ' で起動)');
+
+  let code;
+  try {
+    code = await CF.source();
+  } catch (error) {
+    CF.status('ファイルを読めませんでした', 'failed');
+    CF.printError(String(error));
+    return;
+  }
+
+  const runStarted = performance.now();
+  try {
+    await pyodide.runPythonAsync(code);
+    CF.status('完了 (' + CF.since(runStarted) + ')', 'done');
+  } catch (error) {
+    CF.status('エラーで終了しました', 'failed');
+    CF.printError(String(error.message || error));
+  }
+})();
+</script>
+</body>
+</html>

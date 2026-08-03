@@ -1,0 +1,126 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: [claude/iphone-code-editor-app-idhjgh]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish the IPA as a GitHub release"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+# A newer push supersedes an in-flight run, so a hung job does not hold the
+# queue (or the release) for its whole timeout.
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          ls /Applications | grep -i xcode || true
+          sudo xcode-select -p
+          xcodebuild -version
+          swift --version
+
+      - name: Fetch bundled language runtimes
+        run: |
+          chmod +x Tools/fetch_runtimes.sh
+          Tools/fetch_runtimes.sh
+
+      - name: Check the Python runtime actually runs
+        run: |
+          cd CodeForge/Resources/Runtimes/pyodide
+          node -e "
+            const { loadPyodide } = require('./pyodide.js');
+            (async () => {
+              const py = await loadPyodide({ indexURL: './' });
+              const result = py.runPython('import sys; f\"{sys.version_info.major}.{sys.version_info.minor}:{sum(range(11))}\"');
+              console.log('pyodide says', result);
+              if (!result.endsWith(':55')) { process.exit(1); }
+            })().catch((error) => { console.error(error); process.exit(1); });
+          "
+
+      - name: Regenerate Xcode project
+        run: python3 Tools/generate_project.py
+
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project CodeForge.xcodeproj \
+            -scheme CodeForge \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build-sim \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Launch smoke test (default and Japanese)
+        timeout-minutes: 12
+        run: |
+          chmod +x Tools/smoke_test.sh
+          Tools/smoke_test.sh build-sim/Build/Products/Debug-iphonesimulator/CodeForge.app
+
+      - name: Build (Release, iphoneos, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project CodeForge.xcodeproj \
+            -scheme CodeForge \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      - name: Package Payload/CodeForge.app into an IPA
+        run: |
+          APP="build/Build/Products/Release-iphoneos/CodeForge.app"
+          test -d "$APP" || { echo "app bundle missing"; exit 1; }
+          rm -rf Payload CodeForge-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          # strip anything code-signing related so the payload is plainly unsigned
+          rm -rf Payload/CodeForge.app/_CodeSignature
+          zip -qry CodeForge-unsigned.ipa Payload
+          ls -lh CodeForge-unsigned.ipa
+          unzip -l CodeForge-unsigned.ipa | head -20
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodeForge-unsigned-ipa
+          path: CodeForge-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Publish release
+        if: github.event_name == 'push' || inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ipa-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" CodeForge-unsigned.ipa \
+            --title "CodeForge $TAG (unsigned)" \
+            --notes "Unsigned iOS build of CodeForge produced by GitHub Actions from ${GITHUB_SHA}.
+
+          Install with a sideloading tool that signs it for you (AltStore, Sideloadly, TrollStore, or a paid/free Apple Developer account via Xcode). The IPA contains no code signature by design." \
+            --target "$GITHUB_SHA" || \
+          gh release upload "$TAG" CodeForge-unsigned.ipa --clobber

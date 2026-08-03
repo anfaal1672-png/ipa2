@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL</title>
+<link rel="stylesheet" href="./terminal.css">
+</head>
+<body>
+<div id="status"><i class="dot"></i><span class="label">SQLite を起動しています…</span></div>
+<pre id="out"></pre>
+<script src="./runner.js"></script>
+<script src="../sqljs/sql-wasm.js"></script>
+<script>
+(async function () {
+  const started = performance.now();
+  let SQL;
+  try {
+    SQL = await initSqlJs({ locateFile: (file) => '../sqljs/' + file });
+  } catch (error) {
+    CF.status('SQLite を起動できませんでした', 'failed');
+    CF.printError(String(error));
+    return;
+  }
+
+  let code;
+  try {
+    code = await CF.source();
+  } catch (error) {
+    CF.status('ファイルを読めませんでした', 'failed');
+    CF.printError(String(error));
+    return;
+  }
+
+  CF.printMeta('SQLite (sql.js)  (' + CF.since(started) + ' で起動)  — メモリ上の一時データベースで実行します');
+  CF.status('SQL — 実行中…');
+
+  const db = new SQL.Database();
+  const runStarted = performance.now();
+  try {
+    const results = db.exec(code);
+    if (!results.length) {
+      CF.print('(結果を返す文はありませんでした)');
+    }
+    results.forEach((result, i) => {
+      const table = document.createElement('table');
+      table.className = 'result';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      result.columns.forEach((column) => {
+        const th = document.createElement('th');
+        th.textContent = column;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      result.values.slice(0, 500).forEach((row) => {
+        const tr = document.createElement('tr');
+        row.forEach((value) => {
+          const td = document.createElement('td');
+          td.textContent = value === null ? 'NULL' : String(value);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      CF.printMeta('結果 ' + (i + 1) + ': ' + result.values.length + ' 行');
+      CF.html(table);
+    });
+    CF.status('完了 (' + CF.since(runStarted) + ')', 'done');
+  } catch (error) {
+    CF.status('エラーで終了しました', 'failed');
+    CF.printError(String(error.message || error));
+  } finally {
+    db.close();
+  }
+})();
+</script></body></html>
