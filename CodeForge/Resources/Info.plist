@@ -32,7 +32,23 @@
 		<!-- The preview loads from the app's own loopback web server. -->
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<!-- Plain http as well: a developer tool has to reach the http test
+		     server on the desk and the http link someone pasted, and refusing
+		     them would make "download from a link" fail for half the web. This
+		     is a personally sideloaded build, not an App Store one. -->
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
 	</dict>
+	<!-- Missing any of these is not a refused permission, it is a crash the
+	     moment the picker opens. -->
+	<key>NSCameraUsageDescription</key>
+	<string>撮影した写真・ビデオをプロジェクトに保存します。 / Take a photo or video and save it straight into your project.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>カメラでビデオを撮影するときに音声を録音します。 / Records sound when you shoot a video with the camera.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>写真・ビデオをプロジェクトに読み込みます。 / Adds photos and videos from your library to your project.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>プロジェクト内の画像を写真アプリに保存します。 / Saves images from your project back to your photo library.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>

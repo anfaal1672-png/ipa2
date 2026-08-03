@@ -33,8 +33,10 @@
 		593090D7312B936F76F0767D /* PreviewPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764BDE6119AB4D21CC21F648 /* PreviewPage.swift */; };
 		D7A2C4D2C7C8FA99A489435D /* SampleFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A2772EDD41A9F20E6B8674 /* SampleFiles.swift */; };
 		4A552C25A46343E03A1649B1 /* DocumentImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC3513166DF12DED08878CF2 /* DocumentImporter.swift */; };
+		9068BB4D0CB139B7E462530C /* FileDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1930E30E8FC07E95144CCFE2 /* FileDownloader.swift */; };
 		1C3E4D7016260B2DD97B8377 /* LanguageRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01E4070152178CFC6556130 /* LanguageRuntime.swift */; };
 		A142BF871DF7994C2D24D945 /* LocalWebServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E67B4A25E7A4AD86EA6D1D /* LocalWebServer.swift */; };
+		76956D038187640A1EAA6DB3 /* MediaImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0641ECBFD5E3917026134072 /* MediaImporter.swift */; };
 		9B940D9AA6E9B97E0586DC46 /* SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81FFC16D325E7FD1944E207 /* SelfTest.swift */; };
 		B16CAFAE7E1E13BE2842A9B9 /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE60CA16319DC3CE25CC739F /* WorkspaceStore.swift */; };
 		0150ED9B183C3D535BD0FB5E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB299F63A016C6E28F37295 /* ContentView.swift */; };
@@ -77,8 +79,10 @@
 		764BDE6119AB4D21CC21F648 /* PreviewPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreviewPage.swift"; sourceTree = "<group>"; };
 		98A2772EDD41A9F20E6B8674 /* SampleFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SampleFiles.swift"; sourceTree = "<group>"; };
 		FC3513166DF12DED08878CF2 /* DocumentImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DocumentImporter.swift"; sourceTree = "<group>"; };
+		1930E30E8FC07E95144CCFE2 /* FileDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileDownloader.swift"; sourceTree = "<group>"; };
 		A01E4070152178CFC6556130 /* LanguageRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LanguageRuntime.swift"; sourceTree = "<group>"; };
 		63E67B4A25E7A4AD86EA6D1D /* LocalWebServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalWebServer.swift"; sourceTree = "<group>"; };
+		0641ECBFD5E3917026134072 /* MediaImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MediaImporter.swift"; sourceTree = "<group>"; };
 		C81FFC16D325E7FD1944E207 /* SelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SelfTest.swift"; sourceTree = "<group>"; };
 		BE60CA16319DC3CE25CC739F /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkspaceStore.swift"; sourceTree = "<group>"; };
 		5BB299F63A016C6E28F37295 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
@@ -164,8 +168,10 @@
 			isa = PBXGroup;
 			children = (
 				FC3513166DF12DED08878CF2 /* child */,
+				1930E30E8FC07E95144CCFE2 /* child */,
 				A01E4070152178CFC6556130 /* child */,
 				63E67B4A25E7A4AD86EA6D1D /* child */,
+				0641ECBFD5E3917026134072 /* child */,
 				C81FFC16D325E7FD1944E207 /* child */,
 				BE60CA16319DC3CE25CC739F /* child */,
 			);
@@ -322,8 +328,10 @@
 				593090D7312B936F76F0767D /* PreviewPage.swift in Sources */,
 				D7A2C4D2C7C8FA99A489435D /* SampleFiles.swift in Sources */,
 				4A552C25A46343E03A1649B1 /* DocumentImporter.swift in Sources */,
+				9068BB4D0CB139B7E462530C /* FileDownloader.swift in Sources */,
 				1C3E4D7016260B2DD97B8377 /* LanguageRuntime.swift in Sources */,
 				A142BF871DF7994C2D24D945 /* LocalWebServer.swift in Sources */,
+				76956D038187640A1EAA6DB3 /* MediaImporter.swift in Sources */,
 				9B940D9AA6E9B97E0586DC46 /* SelfTest.swift in Sources */,
 				B16CAFAE7E1E13BE2842A9B9 /* WorkspaceStore.swift in Sources */,
 				0150ED9B183C3D535BD0FB5E /* ContentView.swift in Sources */,

@@ -38,6 +38,9 @@ struct FileBrowserView: View {
     @State private var renameTarget: FileItem?
     @State private var renameText = ""
     @State private var pendingDeletion: FileItem?
+    @State private var downloadFolder: FileItem?
+    @State private var downloadAddress = ""
+    @State private var isDownloading = false
 
     var body: some View {
         NavigationStack {
@@ -63,8 +66,17 @@ struct FileBrowserView: View {
                             newFolderTarget = workspace.root
                             newFolderName = ""
                         } label: { Label(L("New folder"), systemImage: "folder.badge.plus") }
-                        Button { importFromFiles() } label: {
+                        Button { `import`(.files, into: workspace.root) } label: {
                             Label(L("Import from Files"), systemImage: "square.and.arrow.down")
+                        }
+                        Button { `import`(.photos, into: workspace.root) } label: {
+                            Label(L("Photos or videos"), systemImage: "photo.on.rectangle")
+                        }
+                        Button { `import`(.camera, into: workspace.root) } label: {
+                            Label(L("Take a photo or video"), systemImage: "camera")
+                        }
+                        Button { `import`(.download, into: workspace.root) } label: {
+                            Label(L("Download from a link"), systemImage: "arrow.down.circle")
                         }
                         Divider()
                         Picker(L("Sort by"), selection: $sortOrder) {
@@ -86,6 +98,29 @@ struct FileBrowserView: View {
                     dismiss()
                 }
                 .environmentObject(settings)
+            }
+            .alert(L("Download from a link"),
+                   isPresented: Binding(get: { downloadFolder != nil },
+                                        set: { if !$0 { downloadFolder = nil } })) {
+                TextField("https://example.com/file.js", text: $downloadAddress)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
+                Button(L("Cancel"), role: .cancel) { downloadFolder = nil }
+                Button(L("Download")) {
+                    if let folder = downloadFolder { startDownload(into: folder) }
+                    downloadFolder = nil
+                }
+            } message: {
+                Text(L("The file is saved into this folder."))
+            }
+            .overlay {
+                if isDownloading {
+                    ProgressView()
+                        .controlSize(.large)
+                        .padding(24)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
             }
             .alert(L("New folder"),
                    isPresented: Binding(get: { newFolderTarget != nil },
@@ -164,7 +199,8 @@ struct FileBrowserView: View {
                             onNewFolder: { folder in
                                 newFolderTarget = folder
                                 newFolderName = ""
-                            })
+                            },
+                            onImport: { source, folder in `import`(source, into: folder) })
             } header: {
                 Text(L("Documents"))
             } footer: {
@@ -176,15 +212,67 @@ struct FileBrowserView: View {
         .refreshable { workspace.refreshTree() }
     }
 
-    /// Imports, then opens what was imported — landing on the file is what the
-    /// user was after, and it also makes the outcome visible.
-    private func importFromFiles() {
-        DocumentImporter.shared.present { urls in
-            guard !urls.isEmpty else { return }
-            let imported = workspace.importFiles(from: urls)
-            if let first = imported.first {
-                workspace.open(url: first)
-                dismiss()
+    enum ImportSource {
+        case files, photos, camera, download
+    }
+
+    /// Runs an import and then shows the result.
+    ///
+    /// A picked photo or a downloaded file is copied into the chosen folder and
+    /// the browser refreshes; a text file is also opened, because landing on it
+    /// is what the user was after. An image is not opened — the editor has
+    /// nothing useful to show for one, and replacing the file list with a wall
+    /// of binary would be worse than staying put.
+    private func `import`(_ source: ImportSource, into folder: FileItem) {
+        switch source {
+        case .files:
+            DocumentImporter.shared.present { urls in
+                deliver(urls, into: folder)
+            }
+        case .photos:
+            MediaImporter.shared.presentLibrary(onError: { workspace.errorMessage = $0 }) { urls in
+                deliver(urls, into: folder)
+            }
+        case .camera:
+            MediaImporter.shared.presentCamera(onError: { workspace.errorMessage = $0 }) { urls in
+                deliver(urls, into: folder)
+            }
+        case .download:
+            downloadAddress = ""
+            downloadFolder = folder
+        }
+    }
+
+    private func deliver(_ urls: [URL], into folder: FileItem) {
+        guard !urls.isEmpty else { return }
+        let imported = workspace.importFiles(from: urls, into: folder.url)
+        workspace.expandedFolders.insert(folder.url.path)
+        guard let first = imported.first else { return }
+        guard !Self.mediaExtensions.contains(first.pathExtension.lowercased()) else { return }
+        workspace.open(url: first)
+        dismiss()
+    }
+
+    /// Files the editor has nothing useful to show for. Importing a photo
+    /// should leave the browser where it is rather than opening a wall of
+    /// binary in the editor.
+    private static let mediaExtensions: Set<String> = [
+        "jpg", "jpeg", "png", "heic", "heif", "gif", "webp", "tiff", "tif", "bmp",
+        "mov", "mp4", "m4v", "avi", "mpg", "mpeg", "hevc", "dng", "aae",
+        "mp3", "m4a", "wav", "aac", "pdf", "zip"
+    ]
+
+    private func startDownload(into folder: FileItem) {
+        let address = downloadAddress
+        isDownloading = true
+        FileDownloader.download(from: address) { result in
+            isDownloading = false
+            switch result {
+            case .success(let url):
+                deliver([url], into: folder)
+                try? FileManager.default.removeItem(at: url)
+            case .failure(let error):
+                workspace.errorMessage = error.localizedDescription
             }
         }
     }
@@ -225,6 +313,7 @@ private struct OutlineRows: View {
     let onDuplicate: (FileItem) -> Void
     let onNewFile: (FileItem) -> Void
     let onNewFolder: (FileItem) -> Void
+    let onImport: (FileBrowserView.ImportSource, FileItem) -> Void
 
     @EnvironmentObject private var workspace: WorkspaceStore
 
@@ -235,7 +324,8 @@ private struct OutlineRows: View {
                 OutlineRows(items: item.loadChildren(), level: level + 1, filter: filter,
                             sortOrder: sortOrder,
                             onOpen: onOpen, onRename: onRename, onDelete: onDelete,
-                            onDuplicate: onDuplicate, onNewFile: onNewFile, onNewFolder: onNewFolder)
+                            onDuplicate: onDuplicate, onNewFile: onNewFile,
+                            onNewFolder: onNewFolder, onImport: onImport)
             }
         }
     }
@@ -323,6 +413,22 @@ private struct OutlineRows: View {
                 }
                 Button { onNewFolder(item) } label: {
                     Label(L("New folder here"), systemImage: "folder.badge.plus")
+                }
+                Menu {
+                    Button { onImport(.files, item) } label: {
+                        Label(L("Import from Files"), systemImage: "square.and.arrow.down")
+                    }
+                    Button { onImport(.photos, item) } label: {
+                        Label(L("Photos or videos"), systemImage: "photo.on.rectangle")
+                    }
+                    Button { onImport(.camera, item) } label: {
+                        Label(L("Take a photo or video"), systemImage: "camera")
+                    }
+                    Button { onImport(.download, item) } label: {
+                        Label(L("Download from a link"), systemImage: "arrow.down.circle")
+                    }
+                } label: {
+                    Label(L("Import here"), systemImage: "tray.and.arrow.down")
                 }
                 Divider()
             }

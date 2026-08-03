@@ -153,6 +153,16 @@ final class Localization {
         ("Dark", "ダーク"),
         ("Light", "ライト"),
         ("Import from Files", "「ファイル」App から読み込む"),
+        ("Import here", "ここに読み込む"),
+        ("Photos or videos", "写真・ビデオから選ぶ"),
+        ("Take a photo or video", "カメラで撮影する"),
+        ("Download from a link", "リンクからダウンロード"),
+        ("Download", "ダウンロード"),
+        ("The file is saved into this folder.", "このフォルダに保存します。"),
+        ("This device has no camera.", "この端末にはカメラがありません。"),
+        ("That does not look like a web address.", "ウェブアドレスの形式ではありません。"),
+        ("Only http and https can be downloaded.", "http と https のみダウンロードできます。"),
+        ("The server refused the request.", "サーバーに拒否されました。"),
         ("Something went wrong", "エラーが発生しました"),
 
         // --- editor menu -------------------------------------------------

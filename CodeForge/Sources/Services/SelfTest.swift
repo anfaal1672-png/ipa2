@@ -421,6 +421,45 @@ enum SelfTest {
                   == "archive.tar 2.gz")
             try? FileManager.default.removeItem(at: nameRoot)
 
+            // --- the permissions the pickers need --------------------------------
+            //
+            // A missing usage description is not a refused permission: iOS kills
+            // the app the instant the camera opens. The keys live in a plist
+            // that nothing else checks, so they are checked here.
+            let info = Bundle.main.infoDictionary ?? [:]
+            for key in ["NSCameraUsageDescription", "NSMicrophoneUsageDescription",
+                        "NSPhotoLibraryUsageDescription"] {
+                let value = info[key] as? String
+                check("\(key) is present", !(value ?? "").isEmpty)
+            }
+
+            // --- naming a download ------------------------------------------------
+            check("a link with a filename keeps it",
+                  FileDownloader.suggestedName(
+                    for: nil, url: URL(string: "https://example.com/lib/app.min.js")!) == "app.min.js")
+            check("a bare host still gets a name",
+                  FileDownloader.suggestedName(
+                    for: nil, url: URL(string: "https://example.com/")!).hasPrefix("example.com"))
+            let disposition = HTTPURLResponse(
+                url: URL(string: "https://example.com/x")!, statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Disposition": "attachment; filename=\"../../etc/passwd\""])
+            check("a filename from the server cannot contain a path",
+                  FileDownloader.suggestedName(for: disposition,
+                                               url: URL(string: "https://example.com/x")!) == "passwd")
+
+            switch FileDownloader.normalised("example.com/file.txt") {
+            case .success(let url): check("a missing scheme becomes https", url.scheme == "https")
+            case .failure: check("a missing scheme becomes https", false)
+            }
+            switch FileDownloader.normalised("file:///etc/passwd") {
+            case .success: check("a non-web scheme is refused", false)
+            case .failure: check("a non-web scheme is refused", true)
+            }
+            check("a capture is named by the clock",
+                  MediaImporter.captureName(prefix: "photo", extension: "jpg",
+                                            at: Date(timeIntervalSince1970: 0)).hasSuffix(".jpg"))
+
             // --- line endings survive a round trip ------------------------------
             //
             // Opening a Windows file and saving it must not silently rewrite
