@@ -798,6 +798,30 @@ private struct WebPreview: UIViewRepresentable {
             onConsole(ConsoleMessage(level: "error", text: error.localizedDescription))
         }
 
+        // MARK: Hardware the page asks for
+        //
+        // A file input's picker is WebKit's own and needs nothing from us, but
+        // a page that reaches for the camera through JavaScript does: with no
+        // answer to these, `getUserMedia()` and `DeviceMotionEvent` fail
+        // silently, which looks like broken code rather than a missing
+        // permission. `.prompt` hands the decision to the user — WebKit asks,
+        // and iOS asks again the first time the hardware is touched.
+
+        func webView(_ webView: WKWebView,
+                     requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                     initiatedByFrame frame: WKFrameInfo,
+                     type: WKMediaCaptureType,
+                     decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+            decisionHandler(.prompt)
+        }
+
+        func webView(_ webView: WKWebView,
+                     requestDeviceOrientationAndMotionPermissionFor origin: WKSecurityOrigin,
+                     initiatedByFrame frame: WKFrameInfo,
+                     decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+            decisionHandler(.prompt)
+        }
+
         // MARK: JavaScript dialogs
         //
         // Without these, `alert()`, `confirm()` and `prompt()` silently do
